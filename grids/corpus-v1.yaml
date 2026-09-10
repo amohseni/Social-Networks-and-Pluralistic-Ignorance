@@ -1,0 +1,43 @@
+# Corpus v1: mechanism-square sweep (docs/proposal-2026-09-10-gui-and-sweep.md §3).
+name: corpus-v1
+seeds_per_cell: 50
+m: [50, 100, 200, census]
+blocks:
+  - scenario: S1
+    n: [500]
+    topologies:
+      er: {mean_degree: [4, 8]}
+      ba: {m: [2, 4]}
+      regular: {k: [4, 8]}
+    pi0: [0.55, 0.6, 0.7, 0.8]
+    alpha: ["uniform", "beta(1,3)", "beta(1,6)", "beta(3,1)"]
+  - scenario: S2
+    pure: true
+    n: [500]
+    topologies:
+      ba: {m: [1, 2, 4]}
+      core_periphery: {s: [10, 25], k_out: [1, 2]}
+      er: {mean_degree: [4]}
+      regular: {k: [8]}
+    pi0: [0.6, 0.7, 0.8, 0.9]
+    lambda: [0, 0.5, 1, 2, 4, 8]
+  - scenario: S2
+    pure: false
+    n: [500]
+    topologies:
+      ba: {m: [1, 2, 4]}
+      core_periphery: {s: [10, 25], k_out: [1, 2]}
+      er: {mean_degree: [4]}
+      regular: {k: [8]}
+    pi0: [0.6, 0.7, 0.8]
+    alpha: ["uniform", "beta(1,3)", "beta(3,1)"]
+    lambda: [0, 1, 2, 4, 8]
+  - scenario: S3
+    n: [500]
+    topologies:
+      complete: {}
+      regular: {k: [4, 8]}
+      er: {mean_degree: [8]}
+      ba: {m: [2, 4]}
+    alpha: ["uniform", "beta(1,3)", "beta(1,6)"]
+    psi: [0.55, 0.6, 0.7, 0.8, 0.9]

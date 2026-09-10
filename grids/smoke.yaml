@@ -1,0 +1,21 @@
+# Tiny grid for testing the sweep pipeline end to end.
+name: smoke
+seeds_per_cell: 2
+m: [30, census]
+blocks:
+  - scenario: S1
+    n: [60]
+    topologies: {er: {mean_degree: [4]}, regular: {k: [4]}}
+    pi0: [0.6]
+    alpha: ["uniform", "beta(1,3)"]
+  - scenario: S2
+    pure: true
+    n: [60]
+    topologies: {ba: {m: [2]}}
+    pi0: [0.7]
+    lambda: [0, 4]
+  - scenario: S3
+    n: [60]
+    topologies: {regular: {k: [4]}}
+    psi: [0.7]
+    alpha: ["beta(1,3)"]

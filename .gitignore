@@ -1,0 +1,7 @@
+corpora/
+app/cache/
+.Rhistory
+.RData
+.Rproj.user
+__pycache__/
+*.zip
