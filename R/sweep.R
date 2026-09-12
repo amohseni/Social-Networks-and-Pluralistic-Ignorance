@@ -17,7 +17,7 @@ expand_block <- function(block) {
   for (tp in names(topos)) {
     tparams <- topos[[tp]]; if (is.null(tparams) || length(tparams) == 0) tparams <- list(.dummy = 1)
     tgrid <- expand.grid(tparams, stringsAsFactors = FALSE)
-    scalars <- setdiff(names(block), c("topologies", "alpha", "pi0", "lambda", "psi", "homophily", "internalization", "credence", "n"))
+    scalars <- setdiff(names(block), c("topologies", "alpha", "pi0", "lambda", "psi", "homophily", "internalization", "n"))
     lists <- list(
       alpha = block$alpha %||% "uniform",
       pi0 = block$pi0 %||% base$pi0,
@@ -25,7 +25,6 @@ expand_block <- function(block) {
       psi = block$psi %||% base$psi,
       homophily = block$homophily %||% 0,
       internalization = block$internalization %||% 0,
-      credence = block$credence %||% "signal(k=1)",
       n = block[["n"]] %||% base$n)
     ogrid <- expand.grid(lists, stringsAsFactors = FALSE)
     for (i in seq_len(nrow(tgrid))) for (j in seq_len(nrow(ogrid))) {
@@ -35,22 +34,10 @@ expand_block <- function(block) {
       for (nm in scalars) p[[nm]] <- block[[nm]]
       p[c("pi0", "lambda", "psi", "homophily", "internalization", "n")] <- ogrid[j, c("pi0", "lambda", "psi", "homophily", "internalization", "n")]
       p <- modifyList(p, parse_alpha_spec(ogrid$alpha[j]))
-      p <- modifyList(p, parse_credence_spec(ogrid$credence[j]))
       cells[[length(cells) + 1]] <- p
     }
   }
   cells
-}
-
-parse_credence_spec <- function(s) {
-  s <- trimws(s)
-  if (s == "uniform") return(list(credence = "uniform"))
-  ms <- regmatches(s, regexec("^signal\\(\\s*k\\s*=\\s*([0-9]+)\\s*\\)$", s))[[1]]
-  if (length(ms) == 2) return(list(credence = "signal", credence_k = as.integer(ms[2])))
-  if (s == "signal") return(list(credence = "signal", credence_k = 1L))
-  mp <- regmatches(s, regexec("^point\\(\\s*([0-9.]+)\\s*\\)$", s))[[1]]
-  if (length(mp) == 2) return(list(credence = "point", credence_point = as.numeric(mp[2])))
-  stop("cannot parse credence spec: ", s)
 }
 
 expand_grid_spec <- function(spec) {
@@ -67,7 +54,7 @@ estimate_runtime_seconds <- function(cells, seeds_per_cell, n_m = 2L) {
 }
 
 run_sweep <- function(cells, out_dir, seeds_per_cell = 10L, seed_start = 1L, m_list = c("census"),
-                      ghat_noise_sd = 0, write_state = TRUE, progress = NULL, name = "corpus") {
+                      noise_sd = 0, include = names(SURVEY_OPTIONS), write_state = TRUE, progress = NULL, name = "corpus") {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   rows <- list(); total <- length(cells) * seeds_per_cell; done <- 0L; t0 <- Sys.time()
   for (ci in seq_along(cells)) {
@@ -78,9 +65,9 @@ run_sweep <- function(cells, out_dir, seeds_per_cell = 10L, seed_start = 1L, m_l
       rdir <- file.path(out_dir, run_id)
       for (mm in m_list) {
         m_val <- if (identical(mm, "census") || is.na(suppressWarnings(as.numeric(mm)))) st$g$n else as.integer(mm)
-        sv <- survey(st, m_val, survey_seed = p$seed + 10^6, ghat_noise_sd = ghat_noise_sd)
+        sv <- survey(st, m_val, survey_seed = p$seed + 10^6, noise_sd = noise_sd)
         mdir <- if (length(m_list) == 1) rdir else file.path(rdir, paste0("m_", if (m_val == st$g$n) "census" else m_val))
-        write_run(st, sv, mdir, write_state = write_state && (mm == m_list[[1]]))
+        write_run(st, sv, mdir, include = include, write_state = write_state && (mm == m_list[[1]]))
       }
       rows[[length(rows) + 1]] <- run_record(st, gt, list(run_id = run_id, cell = ci, path = rdir))
       done <- done + 1L
@@ -90,7 +77,7 @@ run_sweep <- function(cells, out_dir, seeds_per_cell = 10L, seed_start = 1L, m_l
   manifest <- do.call(rbind, lapply(rows, function(r) as.data.frame(lapply(r, function(x) if (is.null(x) || length(x) == 0) NA else x), stringsAsFactors = FALSE)))
   write.csv(manifest, file.path(out_dir, "manifest.csv"), row.names = FALSE)
   jsonlite::write_json(list(name = name, created = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), n_cells = length(cells),
-                            seeds_per_cell = seeds_per_cell, m_list = as.list(m_list), ghat_noise_sd = ghat_noise_sd,
+                            seeds_per_cell = seeds_per_cell, m_list = as.list(m_list), noise_sd = noise_sd, survey_records = as.list(include),
                             elapsed_seconds = as.numeric(difftime(Sys.time(), t0, units = "secs"))),
                        file.path(out_dir, "corpus.json"), auto_unbox = TRUE, pretty = TRUE)
   invisible(manifest)

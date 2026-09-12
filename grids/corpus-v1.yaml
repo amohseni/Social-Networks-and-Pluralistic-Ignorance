@@ -1,4 +1,5 @@
-# Corpus v1: mechanism-square sweep (docs/proposal-2026-09-10-gui-and-sweep.md §3).
+# Corpus v1: mechanism-square sweep. alpha specs are conformity-parameter
+# distributions; S2 with pure: true sets alpha = 0 (structure only).
 name: corpus-v1
 seeds_per_cell: 50
 m: [50, 100, 200, census]
@@ -6,11 +7,11 @@ blocks:
   - scenario: S1
     n: [500]
     topologies:
-      er: {mean_degree: [4, 8]}
       ba: {m: [2, 4]}
+      er: {mean_degree: [4, 8]}
       regular: {k: [4, 8]}
     pi0: [0.55, 0.6, 0.7, 0.8]
-    alpha: ["uniform", "beta(1,3)", "beta(1,6)", "beta(3,1)"]
+    alpha: ["uniform", "beta(3,1)", "beta(6,1)", "beta(1,3)"]
   - scenario: S2
     pure: true
     n: [500]
@@ -30,7 +31,7 @@ blocks:
       er: {mean_degree: [4]}
       regular: {k: [8]}
     pi0: [0.6, 0.7, 0.8]
-    alpha: ["uniform", "beta(1,3)", "beta(3,1)"]
+    alpha: ["uniform", "beta(3,1)", "beta(1,3)"]
     lambda: [0, 1, 2, 4, 8]
   - scenario: S3
     n: [500]
@@ -39,5 +40,5 @@ blocks:
       regular: {k: [4, 8]}
       er: {mean_degree: [8]}
       ba: {m: [2, 4]}
-    alpha: ["uniform", "beta(1,3)", "beta(1,6)"]
+    alpha: ["uniform", "beta(3,1)", "beta(6,1)"]
     psi: [0.55, 0.6, 0.7, 0.8, 0.9]

@@ -1,18 +1,21 @@
-# Truth-and-Conformity generative models for the PI/FP identifiability project.
-# R port of for-claude/models/pi-fp/tc_pi_engine.py (2026-09-09), per
-# design-2026-09-09.md. Base R only; no Shiny, no igraph. Deterministic given
-# params$seed (set.seed is called inside run_scenario).
+# Generative models for the pluralistic-ignorance vs friendship-paradox project.
+# Base R plus igraph (for eigenvector and betweenness centrality only).
+# Deterministic given params$seed (set.seed is called inside run_scenario).
 #
-# Conventions: attitude a_i in {0,1}, 1 = holds x. Declaration D_i in {0,1}.
-# Credence c_i in (1/2, 1] is confidence in one's own attitude. Type alpha_i in
-# [0,1] is the truth-seeking weight. Payoff for declaring C (the paper's):
-#   U_i(C) = alpha_i * P_i(C) + (1 - alpha_i) * N_i(C).
-# Best response: declare a_i iff alpha_i (2 c_i - 1) >= (1 - alpha_i)(1 - 2 N_i(a_i)).
+# Model (Aydin's 2026-09-11 spec). A population of n agents on an undirected
+# network. Agent i has a private attitude A_i in {0,1}, a public declaration
+# D_i in {0,1}, and a conformity parameter alpha_i in [0,1]. Declaring D pays
+#   U_i(D) = alpha_i * N_i(D) + (1 - alpha_i) * 1[D = A_i],
+# where N_i(D) is the share of i's neighbors declaring D. Agents best-respond
+# one at a time in a random order each round until a full round passes with no
+# change in declarations. Attitudes are fixed during play (unless the
+# internalization extension is on). Ties are broken toward the private attitude.
 #
-# Additions beyond the Python engine, each off by default and labeled as an
-# extension in the GUI: small_world topology, degree-preserving homophily
-# rewiring, eigenvector-centrality weighting for S2, internalization rate,
-# sincere initial declarations for S1, point credence.
+# Scenarios: S1 random start; S2 well-connected minority (pure = no conformity,
+# alpha = 0, the structure-only corner); S3 private change of mind.
+#
+# Extensions, each off by default: small_world topology, degree-preserving
+# homophily rewiring, internalization rate, sincere initial declarations for S1.
 
 `%||%` <- function(a, b) if (is.null(a) || length(a) == 0 || (length(a) == 1 && is.na(a))) b else a
 
@@ -20,27 +23,24 @@
 
 default_params <- function() {
   list(
-    scenario = "S1",            # S1 | S2 | S3 (S2 with pure = TRUE is S2-pure)
+    scenario = "S1",            # S1 | S2 | S3
     n = 200L,
-    topology = "er",            # complete | ring | regular | er | ba | star | core_periphery | small_world
+    topology = "ba",            # ba | er | regular | small_world | core_periphery | complete | ring | star
+    m = 2L,                     # ba: edges per new node
     k = 4L,                     # regular, small_world: even degree
     mean_degree = 6,            # er: p_edge = mean_degree / (n - 1)
-    m = 2L,                     # ba: edges per new node
     s = NA,                     # core_periphery: core size (default n %/% 20, at least 2)
     k_out = 1L,                 # core_periphery: periphery links into the core
     beta = 0.1,                 # small_world: rewiring probability
-    pi0 = 0.6,                  # S1, S2: attitude-1 prevalence
-    alpha_dist = "uniform",     # uniform | beta | point
+    pi0 = 0.6,                  # S1, S2: prevalence of attitude 1
+    alpha_dist = "uniform",     # uniform | beta | point   (conformity parameter distribution)
     alpha_a = 1, alpha_b = 3,   # beta parameters
     alpha_point = 0.5,          # point type
-    credence = "signal",        # signal | uniform | point
-    credence_k = 1L,            # signal: number of signals
-    credence_point = 0.75,      # point credence
     init_decl = "random",       # S1: random | sincere
     lambda = 4,                 # S2: centrality exponent
-    pure = FALSE,               # S2: alpha = 1 for all (structure-only corner)
-    centrality = "degree",      # S2: degree | eigenvector
-    psi = 0.7,                  # S3: flipped fraction
+    pure = TRUE,                # S2: alpha = 0 for all (structure only)
+    centrality = "degree",      # S2: degree | eigenvector | betweenness
+    psi = 0.7,                  # S3: fraction changing their mind
     homophily = 0,              # extension: target share of edges rewired toward same-attitude ties
     internalization = 0,        # extension: per-round probability that a falsifying agent adopts its declaration
     max_rounds = 500L,
@@ -53,6 +53,13 @@ merge_params <- function(p) {
   for (nm in names(p)) d[[nm]] <- p[[nm]]
   d
 }
+
+SCENARIO_NAMES <- c(S1 = "Conformity from a random start", S2 = "Well-connected minority", S3 = "Private change of mind")
+CLASS_NAMES <- c("S1" = "Random start", "S2-pure" = "Well-connected minority, no conformity",
+                 "S2-mixed" = "Well-connected minority, with conformity", "S3" = "Private change of mind")
+
+scenario_label <- function(p) if (p$scenario == "S2") (if (isTRUE(p$pure)) "S2-pure" else "S2-mixed") else p$scenario
+scenario_name <- function(p) unname(CLASS_NAMES[scenario_label(p)])
 
 # ------------------------------------------------------------------ topologies
 
@@ -121,8 +128,8 @@ make_graph <- function(kind, n, k = 4L, mean_degree = 6, m = 2L, s = NA, k_out =
     stop("unknown topology: ", kind)
   )
   E <- canon_edges(E, n)
-  # Enforce d_i >= 1 (the identifiability note assumes it): attach any isolate
-  # to one uniformly random other node.
+  # Every agent needs at least one neighbor (a local sample to perceive):
+  # attach any isolate to one uniformly random other node.
   touched <- logical(n); touched[c(E[, 1], E[, 2])] <- TRUE
   if (n >= 2) for (v in which(!touched)) {
     u <- sample.int(n - 1L, 1L); u <- if (u < v) u else u + 1L
@@ -173,35 +180,18 @@ rewire_homophily <- function(g, a, h) {
   g
 }
 
-eigenvector_centrality <- function(g, iters = 500L) {
-  x <- rep(1, g$n)
-  for (it in seq_len(iters)) {
-    y <- vapply(g$nbrs, function(nb) sum(x[nb]), numeric(1)) + 1e-12
-    y <- y / sqrt(sum(y^2))
-    if (max(abs(y - x)) < 1e-10) { x <- y; break }
-    x <- y
-  }
-  x
+# Centrality scores used to place the minority attitude in S2.
+centrality_scores <- function(g, measure = "degree") {
+  if (measure == "degree") return(as.numeric(g$deg))
+  if (!requireNamespace("igraph", quietly = TRUE)) stop("igraph is required for ", measure, " centrality")
+  ig <- igraph::make_graph(as.vector(t(g$edges)), n = g$n, directed = FALSE)
+  switch(measure,
+    eigenvector = suppressWarnings(igraph::eigen_centrality(ig)$vector),
+    betweenness = igraph::betweenness(ig, normalized = TRUE),
+    stop("unknown centrality measure: ", measure))
 }
 
 # ------------------------------------------------------------------ draws
-
-draw_credence <- function(n, p) {
-  if (n == 0) return(numeric(0))
-  switch(p$credence,
-    uniform = runif(n, 0.5, 1),
-    point = rep(min(1, max(0.5 + 1e-12, p$credence_point)), n),
-    signal = {
-      # k paper-signals from the believed state (pdf 2s on [0,1]); fold so
-      # credence stays in (1/2, 1]; multiply likelihood ratios for k > 1.
-      k <- max(1L, as.integer(p$credence_k))
-      s <- matrix(sqrt(runif(n * k)), n, k)
-      lr <- apply(s / (1 - s), 1, prod)
-      post <- lr / (1 + lr)
-      pmin(1, pmax(pmax(post, 1 - post), 0.5 + 1e-12))
-    },
-    stop("unknown credence source: ", p$credence))
-}
 
 draw_alpha <- function(n, p) {
   switch(p$alpha_dist,
@@ -219,44 +209,41 @@ weighted_sample_wor <- function(w, k) {
 
 # ------------------------------------------------------------------ dynamics
 
-best_response <- function(i, a, c, alpha, D, nbrs) {
+# U_i(D) = alpha_i N_i(D) + (1 - alpha_i) 1[D = A_i]. Declaring A_i beats
+# declaring 1 - A_i by (1 - alpha_i) - alpha_i (1 - 2 N_i(A_i)); ties go to A_i.
+best_response <- function(i, a, alpha, D, nbrs) {
   nb <- nbrs[[i]]
-  if (length(nb) == 0) return(a[i])                        # isolated: sincere
+  if (length(nb) == 0) return(a[i])
   n_own <- mean(D[nb] == a[i])
-  gain <- alpha[i] * (2 * c[i] - 1) - (1 - alpha[i]) * (1 - 2 * n_own)
-  if (gain > 0) return(a[i])
-  if (gain < 0) return(1L - a[i])
-  sample(0:1, 1L)                                          # tie: random (paper rule)
+  gain <- (1 - alpha[i]) - alpha[i] * (1 - 2 * n_own)
+  if (gain >= 0) a[i] else 1L - a[i]
 }
 
-run_to_fixed_point <- function(st, p, log_trajectory = FALSE) {
+run_to_fixed_point <- function(st, p, log_trajectory = TRUE) {
   n <- st$g$n; nbrs <- st$g$nbrs
-  a <- st$a; c <- st$c; alpha <- st$alpha; D <- st$D
+  a <- st$a; alpha <- st$alpha; D <- st$D
   rho <- p$internalization %||% 0
   traj_D <- numeric(0); traj_a <- numeric(0); n_flips <- 0L
   converged <- FALSE; rounds <- 0L
   for (t in seq_len(p$max_rounds)) {
     ord <- sample.int(n); changed <- 0L
     for (i in ord) {
-      d_new <- best_response(i, a, c, alpha, D, nbrs)
+      d_new <- best_response(i, a, alpha, D, nbrs)
       if (d_new != D[i]) { D[i] <- d_new; changed <- changed + 1L }
     }
     flipped <- 0L
     if (rho > 0) {
       cand <- which(D != a)
       flip <- cand[runif(length(cand)) < rho]
-      if (length(flip)) {
-        a[flip] <- D[flip]; c[flip] <- draw_credence(length(flip), p)
-        flipped <- length(flip); n_flips <- n_flips + flipped
-      }
+      if (length(flip)) { a[flip] <- D[flip]; flipped <- length(flip); n_flips <- n_flips + flipped }
     }
     rounds <- t
     if (log_trajectory) { traj_D <- c(traj_D, mean(D)); traj_a <- c(traj_a, mean(a)) }
-    # Absorbing state: a quiet round; with internalization on, additionally
-    # no agent is left declaring against its attitude (else a later flip is possible).
+    # Absorbing state: a quiet round; with internalization on, additionally no
+    # agent is left declaring against its attitude (else a later flip is possible).
     if (changed == 0L && flipped == 0L && (rho <= 0 || !any(D != a))) { converged <- TRUE; break }
   }
-  st$a <- a; st$c <- c; st$D <- D
+  st$a <- a; st$D <- D
   st$rounds <- rounds; st$converged <- converged; st$n_internalized <- n_flips
   st$trajectory <- if (log_trajectory) data.frame(round = seq_along(traj_D), mean_declaration = traj_D, mean_attitude = traj_a) else NULL
   st
@@ -264,8 +251,8 @@ run_to_fixed_point <- function(st, p, log_trajectory = FALSE) {
 
 # ------------------------------------------------------------------ scenarios
 
-new_state <- function(g, a, c, alpha, D, p) {
-  list(g = g, a = as.integer(a), a0 = as.integer(a), c = c, alpha = alpha, D = as.integer(D), D0 = as.integer(D), params = p)
+new_state <- function(g, a, alpha, D, p) {
+  list(g = g, a = as.integer(a), a0 = as.integer(a), alpha = alpha, D = as.integer(D), D0 = as.integer(D), params = p)
 }
 
 graph_from_params <- function(p) {
@@ -283,31 +270,25 @@ run_scenario <- function(params) {
     a <- as.integer(runif(n) < p$pi0)
     g <- rewire_homophily(g, a, p$homophily)
     D <- if (p$init_decl == "sincere") a else sample(0:1, n, replace = TRUE)
-    st <- new_state(g, a, draw_credence(n, p), draw_alpha(n, p), D, p)
-    st <- run_to_fixed_point(st, p, log_trajectory = TRUE)
+    st <- new_state(g, a, draw_alpha(n, p), D, p)
   } else if (p$scenario == "S2") {
-    cen <- if (p$centrality == "eigenvector") eigenvector_centrality(g) else as.numeric(g$deg)
+    cen <- centrality_scores(g, p$centrality)
     n_min <- floor((1 - p$pi0) * n)
     w <- pmax(cen, 1e-9)^p$lambda
     a <- rep(1L, n)
     if (n_min > 0) a[weighted_sample_wor(w, n_min)] <- 0L   # central nodes hold the minority attitude
     g <- rewire_homophily(g, a, p$homophily)
-    alpha <- if (isTRUE(p$pure)) rep(1, n) else draw_alpha(n, p)
-    st <- new_state(g, a, draw_credence(n, p), alpha, a, p)   # declarations start sincere
-    st <- run_to_fixed_point(st, p, log_trajectory = TRUE)
+    alpha <- if (isTRUE(p$pure)) rep(0, n) else draw_alpha(n, p)
+    st <- new_state(g, a, alpha, a, p)                       # declarations start sincere
   } else if (p$scenario == "S3") {
-    a <- rep(1L, n); D <- rep(1L, n)                          # consensus on x: a fixed point
-    cred <- draw_credence(n, p); alpha <- draw_alpha(n, p)
+    a <- rep(1L, n); D <- rep(1L, n)                          # consensus on attitude 1: a fixed point
+    alpha <- draw_alpha(n, p)
     flip <- sample.int(n, round(p$psi * n))
-    a[flip] <- 0L; cred[flip] <- draw_credence(length(flip), p)
+    a[flip] <- 0L                                             # private change of mind
     g <- rewire_homophily(g, a, p$homophily)
-    st <- new_state(g, a, cred, alpha, D, p)
-    st <- run_to_fixed_point(st, p, log_trajectory = TRUE)
+    st <- new_state(g, a, alpha, D, p)
   } else stop("unknown scenario: ", p$scenario)
+  st <- run_to_fixed_point(st, p, log_trajectory = TRUE)
   st$params <- p
   st
-}
-
-scenario_label <- function(p) {
-  if (p$scenario == "S2") if (isTRUE(p$pure)) "S2-pure" else "S2-mixed" else p$scenario
 }
