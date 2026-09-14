@@ -4,7 +4,10 @@
     {
       "name": "shiny-app",
       "runtimeExecutable": "Rscript",
-      "runtimeArgs": ["-e", "shiny::runApp('app', port = 3838, launch.browser = FALSE)"],
+      "runtimeArgs": [
+        "-e",
+        "shiny::runApp('.', port = 3838, launch.browser = FALSE)"
+      ],
       "port": 3838
     }
   ]

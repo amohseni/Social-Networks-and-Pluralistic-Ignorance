@@ -17,9 +17,9 @@ expand_block <- function(block) {
   for (tp in names(topos)) {
     tparams <- topos[[tp]]; if (is.null(tparams) || length(tparams) == 0) tparams <- list(.dummy = 1)
     tgrid <- expand.grid(tparams, stringsAsFactors = FALSE)
-    scalars <- setdiff(names(block), c("topologies", "alpha", "pi0", "lambda", "psi", "homophily", "internalization", "n"))
+    scalars <- setdiff(names(block), c("topologies", "conformity", "pi0", "lambda", "psi", "homophily", "internalization", "n"))
     lists <- list(
-      alpha = block$alpha %||% "uniform",
+      conformity = block$conformity %||% "uniform",
       pi0 = block$pi0 %||% base$pi0,
       lambda = block$lambda %||% base$lambda,
       psi = block$psi %||% base$psi,
@@ -33,7 +33,7 @@ expand_block <- function(block) {
       for (nm in setdiff(names(tgrid), ".dummy")) p[[nm]] <- tgrid[i, nm]
       for (nm in scalars) p[[nm]] <- block[[nm]]
       p[c("pi0", "lambda", "psi", "homophily", "internalization", "n")] <- ogrid[j, c("pi0", "lambda", "psi", "homophily", "internalization", "n")]
-      p <- modifyList(p, parse_alpha_spec(ogrid$alpha[j]))
+      p <- modifyList(p, parse_conformity_spec(ogrid$conformity[j]))
       cells[[length(cells) + 1]] <- p
     }
   }

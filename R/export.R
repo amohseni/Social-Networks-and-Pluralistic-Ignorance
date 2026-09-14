@@ -1,23 +1,23 @@
 # Export of one run: respondents.csv, ego_network.csv (per the survey design),
 # ground_truth.json, params.json, trajectory.csv, state.rds.
 
-alpha_spec_string <- function(p) switch(p$alpha_dist,
-  uniform = "uniform", beta = sprintf("beta(%g,%g)", p$alpha_a, p$alpha_b), point = sprintf("point(%g)", p$alpha_point))
+conformity_spec_string <- function(p) switch(p$c_dist,
+  uniform = "uniform", beta = sprintf("beta(%g,%g)", p$c_a, p$c_b), point = sprintf("point(%g)", p$c_point))
 
-parse_alpha_spec <- function(s) {
+parse_conformity_spec <- function(s) {
   s <- trimws(s)
-  if (s == "uniform") return(list(alpha_dist = "uniform"))
+  if (s == "uniform") return(list(c_dist = "uniform"))
   mb <- regmatches(s, regexec("^beta\\(\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*\\)$", s))[[1]]
-  if (length(mb) == 3) return(list(alpha_dist = "beta", alpha_a = as.numeric(mb[2]), alpha_b = as.numeric(mb[3])))
+  if (length(mb) == 3) return(list(c_dist = "beta", c_a = as.numeric(mb[2]), c_b = as.numeric(mb[3])))
   mp <- regmatches(s, regexec("^point\\(\\s*([0-9.]+)\\s*\\)$", s))[[1]]
-  if (length(mp) == 2) return(list(alpha_dist = "point", alpha_point = as.numeric(mp[2])))
-  stop("cannot parse alpha spec: ", s)
+  if (length(mp) == 2) return(list(c_dist = "point", c_point = as.numeric(mp[2])))
+  stop("cannot parse conformity spec: ", s)
 }
 
 flat_params <- function(p) {
   keep <- c("scenario", "n", "topology", "m", "k", "mean_degree", "s", "k_out", "beta", "pi0",
             "init_decl", "lambda", "pure", "centrality", "psi", "homophily", "internalization", "max_rounds", "seed")
-  out <- p[keep]; out$alpha <- alpha_spec_string(p); out$label <- scenario_label(p); out$scenario_name <- scenario_name(p)
+  out <- p[keep]; out$conformity <- conformity_spec_string(p); out$label <- scenario_label(p); out$scenario_name <- scenario_name(p)
   out
 }
 
@@ -33,7 +33,7 @@ write_run <- function(st, sv, dir, include = names(SURVEY_OPTIONS), write_state 
   jsonlite::write_json(pj, file.path(dir, "params.json"), auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null")
   if (!is.null(st$trajectory)) write.csv(st$trajectory, file.path(dir, "trajectory.csv"), row.names = FALSE)
   if (write_state) saveRDS(list(attitude = st$a, attitude_initial = st$a0, declaration = st$D, declaration_initial = st$D0,
-                                alpha = st$alpha, edges = st$g$edges, params = st$params), file.path(dir, "state.rds"))
+                                conformity = st$conformity, edges = st$g$edges, params = st$params), file.path(dir, "state.rds"))
   invisible(gt)
 }
 

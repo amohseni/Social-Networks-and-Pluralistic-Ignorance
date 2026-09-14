@@ -46,7 +46,7 @@ ground_truth <- function(st) {
     majority_mean_perceived_share = maj_mean,
     share_majority_perceiving_minority = share_maj_perceiving_minority,
     pluralistic_ignorance = isTRUE(maj_mean < 0.5),
-    mean_alpha = mean(st$alpha),
+    mean_conformity = mean(st$conformity),
     n_internalized = st$n_internalized %||% 0L,
     homophily_swaps = st$g$homophily_swaps %||% 0L,
     converged = isTRUE(st$converged), rounds = st$rounds

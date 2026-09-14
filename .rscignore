@@ -1,0 +1,10 @@
+corpora
+docs
+tests
+grids
+.claude
+.git
+.gitignore
+README.md
+LICENSE
+deploy.R

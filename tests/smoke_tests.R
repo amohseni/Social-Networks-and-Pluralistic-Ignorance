@@ -9,10 +9,11 @@
 #   E. Edge-end estimator: census value equals degree-weighted net falsification exactly.
 #   F. Survey designs, exports, sweep pipeline, extensions.
 #   G. Best-response sanity.
+#   H. Blinded corpus: every dataset shows the pattern, coding flips are consistent, ids anonymous, scoring works.
 
 here <- tryCatch(dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE)))), error = function(e) ".")
 root <- normalizePath(file.path(here, ".."))
-source(file.path(root, "R", "engine.R")); source(file.path(root, "R", "measure.R")); source(file.path(root, "R", "export.R")); source(file.path(root, "R", "sweep.R"))
+source(file.path(root, "R", "engine.R")); source(file.path(root, "R", "measure.R")); source(file.path(root, "R", "export.R")); source(file.path(root, "R", "sweep.R")); source(file.path(root, "R", "corpus.R"))
 
 FAIL <- character(0)
 check <- function(name, cond) { cat(if (isTRUE(cond)) "PASS " else "FAIL ", name, "\n", sep = ""); if (!isTRUE(cond)) FAIL <<- c(FAIL, name) }
@@ -22,9 +23,9 @@ t0 <- Sys.time()
 
 # G. best response
 nb <- list(c(2L, 3L, 4L), 1L, 1L, 1L)
-check("G1: alpha = 0 declares its attitude whatever the neighbors say", best_response(1L, a = c(1L, 0L, 0L, 0L), alpha = c(0, 0, 0, 0), D = c(1L, 0L, 0L, 0L), nb) == 1L)
-check("G2: alpha = 1 follows the local majority", best_response(1L, a = c(1L, 0L, 0L, 0L), alpha = c(1, 1, 1, 1), D = c(1L, 0L, 0L, 0L), nb) == 0L)
-check("G3: the switch point is (1 - alpha) = alpha (1 - 2 N): alpha = 0.5 with no support ties toward the attitude, alpha = 0.51 flips",
+check("G1: c = 0 declares its attitude whatever the neighbors say", best_response(1L, a = c(1L, 0L, 0L, 0L), cpar = c(0, 0, 0, 0), D = c(1L, 0L, 0L, 0L), nb) == 1L)
+check("G2: c = 1 follows the local majority", best_response(1L, a = c(1L, 0L, 0L, 0L), cpar = c(1, 1, 1, 1), D = c(1L, 0L, 0L, 0L), nb) == 0L)
+check("G3: the switch point is (1 - c) = c (1 - 2 N): c = 0.5 with no support ties toward the attitude, c = 0.51 flips",
       best_response(1L, c(1L, 0L, 0L, 0L), c(0.5, 0, 0, 0), c(1L, 0L, 0L, 0L), nb) == 1L && best_response(1L, c(1L, 0L, 0L, 0L), c(0.51, 0, 0, 0), c(1L, 0L, 0L, 0L), nb) == 0L)
 
 # A. random start (preferential attachment, n = 200, pi0 = 0.6)
@@ -33,13 +34,13 @@ for (lab in c("uniform", "beta61")) {
   cls <- character(0)
   for (s in 1:60) {
     p <- list(scenario = "S1", n = 200, topology = "ba", m = 2, pi0 = 0.6, seed = s)
-    if (lab == "beta61") { p$alpha_dist <- "beta"; p$alpha_a <- 6; p$alpha_b <- 1 }
+    if (lab == "beta61") { p$c_dist <- "beta"; p$c_a <- 6; p$c_b <- 1 }
     gt <- gt_checked(run_scenario(p))
     k <- if (gt$pluralistic_ignorance) "PI" else "noPI"; cls <- c(cls, k)
     if (lab == "beta61") mis[[k]] <- c(mis[[k]], abs(gt$term_misperception))
   }
   freqs[[lab]] <- table(factor(cls, levels = c("noPI", "PI")))
-  cat(sprintf("Random start, alpha ~ %s, 60 seeds: no PI %d, PI %d\n", lab, freqs[[lab]]["noPI"], freqs[[lab]]["PI"]))
+  cat(sprintf("Random start, c ~ %s, 60 seeds: no PI %d, PI %d\n", lab, freqs[[lab]]["noPI"], freqs[[lab]]["PI"]))
 }
 check("A1: both outcome classes occur", freqs$beta61["noPI"] > 5 && freqs$beta61["PI"] > 3)
 check("A2: conformist-heavy types raise the PI frequency", freqs$beta61["PI"] > freqs$uniform["PI"])
@@ -63,19 +64,19 @@ check("B6: lambda = 0 places the minority at random (|structure term| small)", a
 # C. private change of mind
 out <- list()
 for (lab in c("uniform", "beta31")) {
-  res <- t(sapply(1:40, function(s) { p <- list(scenario = "S3", n = 100, topology = "complete", psi = 0.7, seed = s); if (lab == "beta31") { p$alpha_dist <- "beta"; p$alpha_a <- 3; p$alpha_b <- 1 }
+  res <- t(sapply(1:40, function(s) { p <- list(scenario = "S3", n = 100, topology = "complete", psi = 0.7, seed = s); if (lab == "beta31") { p$c_dist <- "beta"; p$c_a <- 3; p$c_b <- 1 }
     st <- run_scenario(p); gt <- gt_checked(st); c(gt$pluralistic_ignorance, mean(st$D)) }))
   out[[lab]] <- c(persist = sum(res[, 1]), tip = sum(res[, 2] < 0.5))
-  cat(sprintf("Private change (complete, psi=0.7), alpha ~ %s: %d/40 persist (PI), %d/40 tip\n", lab, out[[lab]]["persist"], out[[lab]]["tip"]))
+  cat(sprintf("Private change (complete, psi=0.7), c ~ %s: %d/40 persist (PI), %d/40 tip\n", lab, out[[lab]]["persist"], out[[lab]]["tip"]))
 }
 check("C1: uniform conformity mostly tips; beta(3,1) mostly persists", out$uniform["tip"] > 30 && out$beta31["persist"] > 30)
 found <- NULL
-for (s in 1:40) { st <- run(scenario = "S3", n = 200, topology = "regular", k = 8, psi = 0.7, alpha_dist = "beta", alpha_a = 3, alpha_b = 1, seed = 1000 + s); gt <- gt_checked(st); if (gt$pluralistic_ignorance) { found <- gt; break } }
+for (s in 1:40) { st <- run(scenario = "S3", n = 200, topology = "regular", k = 8, psi = 0.7, c_dist = "beta", c_a = 3, c_b = 1, seed = 1000 + s); gt <- gt_checked(st); if (gt$pluralistic_ignorance) { found <- gt; break } }
 check("C2: a persistence run exists on a regular network", !is.null(found))
 if (!is.null(found)) check("C3: its gap is pure misperception (structure term 0)", abs(found$term_structure) < 1e-12 && abs(found$term_misperception) > 0.1)
 
 # E. edge-end estimator
-st <- run(scenario = "S3", n = 400, topology = "regular", k = 8, psi = 0.65, alpha_dist = "beta", alpha_a = 2, alpha_b = 1, seed = 7); gt <- gt_checked(st)
+st <- run(scenario = "S3", n = 400, topology = "regular", k = 8, psi = 0.65, c_dist = "beta", c_a = 2, c_b = 1, seed = 7); gt <- gt_checked(st)
 sv <- survey(st, 400, survey_seed = 8); est <- edge_end_estimates(sv$respondents, sv$ego_network)
 check("E1: census edge-end test equals degree-weighted net falsification", abs(est$net_misperception - gt$deg_weighted_net_falsification) < 1e-12)
 sv2 <- survey(st, 200, survey_seed = 9); est2 <- edge_end_estimates(sv2$respondents, sv2$ego_network)
@@ -97,7 +98,7 @@ check("F3: ego_network rows equal total sampled degree", nrow(sv$ego_network) ==
 check("F4: linked design is exact", all(sv$ego_network$neighbor_attitude == st$a[sv$ego_network$neighbor_id]) && all(sv$ego_network$perceived_neighbor_attitude == st$D[sv$ego_network$neighbor_id]))
 set.seed(1); g <- make_graph("ba", 200, m = 2); a <- as.integer(runif(200) < 0.5); g2 <- rewire_homophily(g, a, 0.5)
 check("F5: homophily rewiring preserves degrees and raises same-attitude share", identical(g$deg, g2$deg) && mean(a[g2$edges[, 1]] == a[g2$edges[, 2]]) > mean(a[g$edges[, 1]] == a[g$edges[, 2]]))
-st <- run(scenario = "S3", n = 100, topology = "complete", psi = 0.7, alpha_dist = "beta", alpha_a = 3, alpha_b = 1, internalization = 0.5, seed = 3); gt <- gt_checked(st)
+st <- run(scenario = "S3", n = 100, topology = "complete", psi = 0.7, c_dist = "beta", c_a = 3, c_b = 1, internalization = 0.5, seed = 3); gt <- gt_checked(st)
 check("F6: internalization changes attitudes and converges with no falsifier left", gt$n_internalized > 0 && gt$converged && all(st$D == st$a))
 for (tp in c("complete", "ring", "regular", "er", "ba", "star", "core_periphery", "small_world")) { g <- make_graph(tp, 50); stopifnot(all(g$deg >= 1), nrow(g$edges) > 0) }
 check("F7: all topologies build with no isolates at n = 50", TRUE)
@@ -111,6 +112,27 @@ check("F10: smoke sweep writes a manifest with one row per run", nrow(mf) == 2 *
 spec1 <- yaml::read_yaml(file.path(root, "grids", "corpus-v1.yaml")); c1 <- expand_grid_spec(spec1)
 cat(sprintf("corpus-v1 grid: %d cells; at %d seeds per cell = %d runs; rough time %.0f min\n", length(c1), spec1$seeds_per_cell, length(c1) * spec1$seeds_per_cell, estimate_runtime_seconds(c1, spec1$seeds_per_cell, 4) / 60))
 check("F11: corpus-v1 grid expands", length(c1) > 600)
+
+# H. blinded corpus
+s <- default_corpus_settings(); s$per_scenario[] <- 3L; s$n_range <- c(120L, 200L); s$respondents <- 80L
+td3 <- tempfile(); key <- generate_blinded_corpus(s, td3)
+check("H1: corpus has the requested datasets, all showing the pattern in the population", nrow(key) == 9 && all(table(key$scenario_code) == 3) && all(key$majority_mean_perceived_share < 0.5))
+check("H2: blinded folder has README and one folder per dataset; key kept outside it",
+      file.exists(file.path(td3, "blinded", "README.txt")) && length(list.dirs(file.path(td3, "blinded", "datasets"), recursive = FALSE)) == 9 && file.exists(file.path(td3, "key.csv")) && !file.exists(file.path(td3, "blinded", "key.csv")))
+r1 <- read.csv(file.path(td3, "blinded", "datasets", key$dataset_id[1], "respondents.csv")); e1 <- read.csv(file.path(td3, "blinded", "datasets", key$dataset_id[1], "ego_network.csv"))
+check("H3: blinded files carry only the recorded columns", identical(names(r1), c("respondent_id", "attitude", "perceived_prevalence", "degree", "declaration")) && identical(names(e1), c("respondent_id", "neighbor_slot", "perceived_neighbor_attitude", "neighbor_degree")))
+det <- readRDS(file.path(td3, "key_details", paste0(key$dataset_id[1], ".rds")))
+maj_coded <- if (mean(r1$attitude) >= 0.5) 1L else 0L
+check("H4: the majority as coded matches the key and the sample shows the pattern the same way",
+      maj_coded == key$majority_attitude_as_coded[1] && key$pattern_in_sample[1] == sample_shows_pattern(r1))
+check("H5: consistency after coding flip: perceived prevalence equals the mean perceived contact attitude",
+      max(abs(r1$perceived_prevalence - tapply(e1$perceived_neighbor_attitude, factor(e1$respondent_id, levels = r1$respondent_id), mean))) < 1e-12)
+check("H6: mechanism labels follow the scenarios", all(key$mechanism[key$scenario_code == "S2-pure"] == "friendship paradox") && all(key$mechanism[key$scenario_code != "S2-pure"] == "genuine pluralistic ignorance"))
+pred <- data.frame(dataset_id = key$dataset_id, prediction = ifelse(key$falsified_share > 0, "genuine", "structure"), score = key$falsified_share)
+sc <- score_predictions(key, pred)
+check("H7: scoring a perfect prediction gives accuracy 1 and AUC 1", sc$accuracy == 1 && sc$auc == 1 && sc$n_scored == 9)
+pred2 <- pred; pred2$prediction <- rev(pred2$prediction)
+check("H8: scoring reports imperfect predictions", score_predictions(key, pred2)$accuracy < 1)
 
 cat(sprintf("\nelapsed %.1f s\n", as.numeric(difftime(Sys.time(), t0, units = "secs"))))
 cat(if (length(FAIL) == 0) "ALL PASS\n" else paste0("FAILURES: ", paste(FAIL, collapse = "; "), "\n"))

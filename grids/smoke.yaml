@@ -7,7 +7,7 @@ blocks:
     n: [60]
     topologies: {ba: {m: [2]}, regular: {k: [4]}}
     pi0: [0.6]
-    alpha: ["uniform", "beta(3,1)"]
+    conformity: ["uniform", "beta(3,1)"]
   - scenario: S2
     pure: true
     n: [60]
@@ -18,4 +18,4 @@ blocks:
     n: [60]
     topologies: {regular: {k: [4]}}
     psi: [0.7]
-    alpha: ["beta(3,1)"]
+    conformity: ["beta(3,1)"]
