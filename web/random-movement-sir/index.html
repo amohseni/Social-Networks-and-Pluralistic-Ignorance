@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Random Movement SIR</title>
+<meta name="description" content="Browser port of the NetLogo RandomMovementSIR model: agents walk at random on a torus and pass infection to one neighbour within a radius per tick.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #f5f5f2;
+  --surface: #ffffff;
+  --surface-2: #ecece8;
+  --line: #d6d6d0;
+  --ink: #1c1d21;
+  --ink-2: #55575e;
+  --ink-3: #8a8c94;
+  --accent: #1c1d21;
+  --world-bg: #000000;
+  --s: #2f6bd6;
+  --i: #d9382b;
+  --r: #6e7480;
+  --focus: #2f6bd6;
+  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181c; --surface: #1f2026; --surface-2: #26272e; --line: #34363e;
+    --ink: #ececef; --ink-2: #b3b5bd; --ink-3: #7f828c; --accent: #ececef;
+    --world-bg: #000000; --s: #5b8deb; --i: #ef5f52; --r: #8a9099; --focus: #5b8deb;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181c; --surface: #1f2026; --surface-2: #26272e; --line: #34363e;
+  --ink: #ececef; --ink-2: #b3b5bd; --ink-3: #7f828c; --accent: #ececef;
+  --world-bg: #000000; --s: #5b8deb; --i: #ef5f52; --r: #8a9099; --focus: #5b8deb;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 48px; padding-inline: 16px;
+}
+.page { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--ink-2); }
+.lab { display: grid; grid-template-columns: 250px minmax(0, 1fr) minmax(280px, 340px); gap: 18px; align-items: start; }
+@media (max-width: 1000px) { .lab { grid-template-columns: 250px minmax(0, 1fr); } .plot-col { grid-column: 1 / -1; } }
+@media (max-width: 680px) { .lab { grid-template-columns: 1fr; } .plot-col { grid-column: auto; } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.controls { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+button {
+  font: inherit; font-weight: 500; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 4px; padding: 7px 8px; cursor: pointer;
+}
+button:hover { border-color: var(--ink-3); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button.primary.running { background: var(--i); border-color: var(--i); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.ctl { display: flex; flex-direction: column; gap: 3px; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ctl-head label { font-weight: 500; }
+.ctl-head output { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; }
+input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.switch label { font-weight: 500; }
+.switch input { width: 34px; height: 18px; accent-color: var(--accent); margin: 0; }
+.sub { font-size: 12px; color: var(--ink-3); }
+.group-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin: 4px 0 -4px; }
+.seed { display: flex; gap: 6px; align-items: center; }
+.seed input[type=number] { font: 13px var(--mono); width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.seed button { padding: 5px 8px; white-space: nowrap; }
+
+.world-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.world-wrap { position: relative; width: 100%; max-width: 594px; aspect-ratio: 1 / 1; margin: 0 auto; }
+canvas#world { width: 100%; height: 100%; display: block; background: var(--world-bg); border-radius: 4px; border: 1px solid var(--line); }
+.world-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; align-items: baseline; max-width: 594px; margin: 0 auto; width: 100%; }
+.tick { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.tick b { font-weight: 500; font-size: 18px; }
+.status { color: var(--ink-2); font-size: 13px; }
+.status.stopped { color: var(--i); }
+
+.plot-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.tile { padding: 10px 12px; border-left: 1px solid var(--line); border-top: 3px solid var(--tile); }
+.tile:first-child { border-left: 0; }
+.tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+.tile .v { font-family: var(--mono); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tile .p { font-family: var(--mono); font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.plot { padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 6px; }
+.plot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.plot-head h2 { font-size: 13px; font-weight: 600; margin: 0; }
+.legend { display: flex; gap: 12px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 3px; border-radius: 2px; background: var(--c); vertical-align: middle; margin-right: 5px; }
+.chart-wrap { position: relative; width: 100%; height: 220px; }
+canvas#chart { width: 100%; height: 100%; display: block; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 8px; font: 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; display: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+.tip div { display: flex; justify-content: space-between; gap: 10px; }
+.tip .t { color: var(--ink-3); }
+.plot-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.summary { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.summary b { font-weight: 500; color: var(--ink); font-family: var(--mono); }
+button.small { padding: 4px 8px; font-size: 12px; }
+
+.notes { max-width: 72ch; display: grid; gap: 14px; }
+.notes h2 { font-size: 15px; margin: 8px 0 0; }
+.notes p, .notes li { margin: 0; color: var(--ink-2); }
+.notes ul, .notes ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.notes code { font: 12.5px var(--mono); background: var(--surface-2); padding: 1px 4px; border-radius: 3px; color: var(--ink); }
+details summary { cursor: pointer; font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <h1>Random Movement SIR</h1>
+  <p>Agents walk at random on a 33 × 33 torus. Each infectious agent contacts one agent within its radius per tick.</p>
+</header>
+
+<div class="lab">
+  <aside class="panel controls" aria-label="Controls">
+    <div class="buttons">
+      <button id="btn-setup">Setup</button>
+      <button id="btn-go" class="primary">Go</button>
+      <button id="btn-step">Go once</button>
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="speed">Speed</label><output id="speed-out" for="speed">1 tick / frame</output></div>
+      <input type="range" id="speed" min="0" max="100" value="50">
+    </div>
+
+    <div class="group-title">Population (applied at Setup)</div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="NumberOfPeople">NumberOfPeople</label><output id="NumberOfPeople-out">1024</output></div>
+      <input type="range" id="NumberOfPeople" min="1" max="2000" step="1" value="1024">
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="InitiallyInfectious">InitiallyInfectious</label><output id="InitiallyInfectious-out">1</output></div>
+      <input type="range" id="InitiallyInfectious" min="0" max="100" step="1" value="1">
+    </div>
+    <div class="seed">
+      <input type="number" id="seed" placeholder="seed (blank = random)" aria-label="Random seed" step="1">
+      <button id="btn-reseed" class="small" title="Draw a new random seed">New</button>
+    </div>
+
+    <div class="group-title">Transmission (live)</div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="Radius">Radius</label><output id="Radius-out">20</output></div>
+      <input type="range" id="Radius" min="1" max="20" step="1" value="20">
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="ProbTransmission">ProbTransmission</label><output id="ProbTransmission-out">1.00</output></div>
+      <input type="range" id="ProbTransmission" min="0" max="1" step="0.01" value="1">
+    </div>
+
+    <div class="group-title">Course of infection (live)</div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="PeriodsInfectious">PeriodsInfectious</label><output id="PeriodsInfectious-out">18</output></div>
+      <input type="range" id="PeriodsInfectious" min="0" max="100" step="1" value="18">
+    </div>
+    <div class="switch"><label for="PerpetuallyInfectious">PerpetuallyInfectious</label><input type="checkbox" id="PerpetuallyInfectious"></div>
+    <div class="ctl">
+      <div class="ctl-head"><label for="PeriodsRemoved">PeriodsRemoved</label><output id="PeriodsRemoved-out">1</output></div>
+      <input type="range" id="PeriodsRemoved" min="1" max="100" step="1" value="1">
+    </div>
+    <div class="switch"><label for="PerpetuallyRemoved">PerpetuallyRemoved</label><input type="checkbox" id="PerpetuallyRemoved"></div>
+    <p class="sub">Space bar toggles Go. Live sliders act on the running model, as NetLogo sliders do.</p>
+  </aside>
+
+  <section class="world-col" aria-label="World view">
+    <div class="world-wrap"><canvas id="world" role="img" aria-label="Agents on a 33 by 33 torus; blue susceptible, red infectious, gray removed"></canvas></div>
+    <div class="world-foot">
+      <div class="tick">ticks <b id="tick">0</b></div>
+      <div class="status" id="status">Ready. Press Setup.</div>
+    </div>
+  </section>
+
+  <section class="plot-col" aria-label="Epidemic plot">
+    <div class="tiles">
+      <div class="tile" style="--tile: var(--s)"><div class="k">Susceptible</div><div class="v" id="n-s">0</div><div class="p" id="p-s">–</div></div>
+      <div class="tile" style="--tile: var(--i)"><div class="k">Infectious</div><div class="v" id="n-i">0</div><div class="p" id="p-i">–</div></div>
+      <div class="tile" style="--tile: var(--r)"><div class="k">Removed</div><div class="v" id="n-r">0</div><div class="p" id="p-r">–</div></div>
+    </div>
+    <div class="panel plot">
+      <div class="plot-head"><h2>Epidemic <span class="sub" style="font-weight:400">count by tick</span></h2>
+        <div class="legend"><span style="--c: var(--s)">Susceptible</span><span style="--c: var(--i)">Infectious</span><span style="--c: var(--r)">Removed</span></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
+      <div class="plot-foot">
+        <div class="summary" id="summary">Peak infectious <b>–</b> · infections <b>–</b></div>
+        <button class="small" id="btn-csv">Copy CSV</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<section class="notes" aria-label="About the model">
+  <h2>How it works</h2>
+  <p>A port of the NetLogo model <code>RandomMovementSIR.nlogo</code> (NetLogo 6.4.0), rule for rule. The world is 33 × 33 patches with wrapping on both axes. Each agent is susceptible, infectious, or removed.</p>
+  <ol>
+    <li><b>Setup.</b> <code>NumberOfPeople</code> agents are placed on random patch centres; <code>InitiallyInfectious</code> of them start infectious.</li>
+    <li><b>Stop rule.</b> Go halts when no agent is infectious, or, with <code>PerpetuallyInfectious</code> on, when every agent is.</li>
+    <li><b>Infectious agents</b>, in random order: the infectious clock advances by one. If it exceeds <code>PeriodsInfectious</code> (and <code>PerpetuallyInfectious</code> is off) the agent is removed. Otherwise it picks one agent uniformly at random among those within <code>Radius</code> (torus distance) and, if that agent is susceptible, infects it with probability <code>ProbTransmission</code>.</li>
+    <li><b>Removed agents</b>: the removed clock advances by one. If it exceeds <code>PeriodsRemoved</code> (and <code>PerpetuallyRemoved</code> is off) the agent becomes susceptible again.</li>
+    <li><b>Movement.</b> Every agent turns right by a uniform integer number of degrees and steps forward one unit.</li>
+  </ol>
+  <h2>Things to notice</h2>
+  <ul>
+    <li>With both switches off and <code>PeriodsRemoved</code> = 1 the model is SIRS with one tick of immunity, so it need not die out. <code>PerpetuallyRemoved</code> on gives classic SIR.</li>
+    <li>Agents newly infected in a tick do not transmit until the next tick, but agents removed in a tick start their removed clock the same tick. An infection therefore lasts <code>PeriodsInfectious</code> + 1 ticks and immunity lasts <code>PeriodsRemoved</code> ticks.</li>
+    <li>The caller is inside its own radius, so each contact draw lands on the infectious agent itself with probability 1 / (agents in radius). With few agents nearby this wastes a sizeable share of contacts.</li>
+    <li>Contact is one draw per infectious agent per tick regardless of crowding, so transmission is frequency-dependent, not density-dependent. <code>Radius</code> 20 on a 33-wide torus reaches almost everyone, which makes the model well mixed; small radii make it spatial.</li>
+    <li>The NetLogo file saves <code>NumberOfPeople</code> = 1024 on a slider capped at 1000. The slider here runs to 2000.</li>
+  </ul>
+  <details><summary>Reproducibility</summary>
+    <p>Enter a seed before Setup to reproduce a run in this app. The random stream differs from NetLogo's, so seeds do not match across the two.</p>
+  </details>
+</section>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ---------- world constants (NetLogo GRAPHICS-WINDOW: -16..16 both axes, wrap x and y) ----------
+const MINC = -16, MAXC = 16, W = MAXC - MINC + 1, HALF = W / 2, EDGE = MINC - 0.5;
+const S = 0, I = 1, R = 2;
+const SIN = new Float64Array(360), COS = new Float64Array(360);
+for (let d = 0; d < 360; d++) { SIN[d] = Math.sin(d * Math.PI / 180); COS[d] = Math.cos(d * Math.PI / 180); }
+
+// ---------- seeded PRNG (mulberry32) ----------
+let rng = Math.random;
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const randInt = n => Math.floor(rng() * n);
+
+// ---------- parameters ----------
+const $ = id => document.getElementById(id);
+const sliders = ['NumberOfPeople', 'InitiallyInfectious', 'Radius', 'ProbTransmission', 'PeriodsInfectious', 'PeriodsRemoved'];
+const P = () => ({
+  N: +$('NumberOfPeople').value, I0: +$('InitiallyInfectious').value, radius: +$('Radius').value,
+  p: +$('ProbTransmission').value, tI: +$('PeriodsInfectious').value, tR: +$('PeriodsRemoved').value,
+  perpI: $('PerpetuallyInfectious').checked, perpR: $('PerpetuallyRemoved').checked,
+});
+for (const id of sliders) {
+  const el = $(id), out = $(id + '-out');
+  const show = () => { out.textContent = id === 'ProbTransmission' ? (+el.value).toFixed(2) : el.value; };
+  el.addEventListener('input', show); show();
+}
+
+// ---------- model state ----------
+let N = 0, x, y, hd, st, ti, tr, ever, tick = 0, hist = [], seedUsed = null, stopped = false, infections = 0;
+let cellStart = new Int32Array(W * W + 1), cellItems, cellOf, cand;
+
+function setup() {
+  const p = P();
+  const seedField = $('seed').value.trim();
+  seedUsed = seedField === '' ? Math.floor(Math.random() * 2 ** 31) : (parseInt(seedField, 10) | 0);
+  if (seedField === '') $('seed').value = seedUsed;
+  rng = mulberry32(seedUsed);
+  N = Math.max(1, p.N);
+  x = new Float64Array(N); y = new Float64Array(N); hd = new Int16Array(N);
+  st = new Uint8Array(N); ti = new Int32Array(N); tr = new Int32Array(N); ever = new Uint8Array(N);
+  cellItems = new Int32Array(N); cellOf = new Int32Array(N); cand = new Int32Array(N);
+  for (let k = 0; k < N; k++) { x[k] = MINC + randInt(W); y[k] = MINC + randInt(W); hd[k] = randInt(360); }
+  // n-of InitiallyInfectious turtles (partial Fisher-Yates)
+  const idx = new Int32Array(N); for (let k = 0; k < N; k++) idx[k] = k;
+  const m = Math.min(p.I0, N);
+  for (let k = 0; k < m; k++) { const j = k + randInt(N - k); const t = idx[k]; idx[k] = idx[j]; idx[j] = t; st[idx[k]] = I; ever[idx[k]] = 1; }
+  infections = m;
+  tick = 0; hist = []; stopped = false; record();
+  setStatus(m < p.I0 ? `InitiallyInfectious capped at ${N} (population size).` : 'Set up. Press Go.', false);
+  drawAll();
+}
+
+function counts() { let s = 0, i = 0, r = 0; for (let k = 0; k < N; k++) { if (st[k] === S) s++; else if (st[k] === I) i++; else r++; } return [s, i, r]; }
+function record() { const c = counts(); hist.push([tick, c[0], c[1], c[2]]); }
+
+function torusDist2(a, b) {
+  let dx = Math.abs(x[a] - x[b]); if (dx > HALF) dx = W - dx;
+  let dy = Math.abs(y[a] - y[b]); if (dy > HALF) dy = W - dy;
+  return dx * dx + dy * dy;
+}
+function buildCells() {
+  cellStart.fill(0);
+  for (let k = 0; k < N; k++) { const c = (Math.floor(y[k] - EDGE) * W + Math.floor(x[k] - EDGE)); cellOf[k] = c; cellStart[c + 1]++; }
+  for (let c = 0; c < W * W; c++) cellStart[c + 1] += cellStart[c];
+  const fill = cellStart.slice(0, W * W);
+  for (let k = 0; k < N; k++) cellItems[fill[cellOf[k]]++] = k;
+}
+// one-of turtles in-radius radius (caller included), or -1 if none
+function pickInRadius(a, radius) {
+  const r2 = radius * radius; let n = 0;
+  const span = Math.ceil(radius) + 1;
+  if (2 * span + 1 >= W) {
+    for (let b = 0; b < N; b++) if (torusDist2(a, b) <= r2) cand[n++] = b;
+  } else {
+    const cx = cellOf[a] % W, cy = (cellOf[a] - cx) / W;
+    for (let dy = -span; dy <= span; dy++) {
+      const yy = (cy + dy + W) % W;
+      for (let dx = -span; dx <= span; dx++) {
+        const c = yy * W + (cx + dx + W) % W;
+        for (let q = cellStart[c]; q < cellStart[c + 1]; q++) { const b = cellItems[q]; if (torusDist2(a, b) <= r2) cand[n++] = b; }
+      }
+    }
+  }
+  return n ? cand[randInt(n)] : -1;
+}
+
+// returns false when the NetLogo `stop` fires
+function go() {
+  const p = P();
+  let anyI = false, anyNotI = false;
+  for (let k = 0; k < N; k++) { if (st[k] === I) anyI = true; else anyNotI = true; }
+  if (!anyI) { setStatus('Stopped: no infectious agents.', true); return false; }
+  if (!anyNotI && p.perpI) { setStatus('Stopped: every agent is infectious.', true); return false; }
+
+  // ask turtles with [infectious?] (agentset fixed now, random order)
+  const inf = []; for (let k = 0; k < N; k++) if (st[k] === I) inf.push(k);
+  for (let k = inf.length - 1; k > 0; k--) { const j = randInt(k + 1); const t = inf[k]; inf[k] = inf[j]; inf[j] = t; }
+  buildCells();
+  for (const a of inf) {
+    ti[a]++;
+    if (ti[a] > p.tI && !p.perpI) { st[a] = R; ti[a] = 0; tr[a] = 0; }
+    else {
+      const b = pickInRadius(a, p.radius);
+      if (b >= 0 && st[b] === S && rng() < p.p) { st[b] = I; ever[b] = 1; infections++; }
+    }
+  }
+  // ask turtles with [removed?] (includes agents removed this tick)
+  for (let k = 0; k < N; k++) if (st[k] === R) {
+    tr[k]++;
+    if (tr[k] > p.tR && !p.perpR) { st[k] = S; ti[k] = 0; tr[k] = 0; }
+  }
+  // ask turtles [rt random 360  forward 1]
+  for (let k = 0; k < N; k++) {
+    const h = (hd[k] + randInt(360)) % 360; hd[k] = h;
+    let nx = x[k] + SIN[h], ny = y[k] + COS[h];
+    if (nx < EDGE) nx += W; else if (nx >= EDGE + W) nx -= W;
+    if (ny < EDGE) ny += W; else if (ny >= EDGE + W) ny -= W;
+    x[k] = nx; y[k] = ny;
+  }
+  tick++; record();
+  return true;
+}
+
+// ---------- run loop ----------
+let running = false, raf = 0, lastFrame = 0, acc = 0;
+const speedEl = $('speed'), speedOut = $('speed-out');
+function speedSpec() {
+  const v = +speedEl.value;
+  if (v < 50) { const delay = Math.round(1000 * Math.pow(0.02, v / 50)) ; return { delay, per: 1, label: `1 tick / ${delay} ms` }; }
+  const per = Math.round(Math.pow(30, (v - 50) / 50)); return { delay: 0, per, label: per === 1 ? '1 tick / frame' : `${per} ticks / frame` };
+}
+speedEl.addEventListener('input', () => { speedOut.textContent = speedSpec().label; }); speedOut.textContent = speedSpec().label;
+
+function frame(now) {
+  if (!running) return;
+  const sp = speedSpec();
+  if (sp.delay) {
+    if (now - lastFrame >= sp.delay) { lastFrame = now; if (!go()) return halt(); drawAll(); }
+  } else {
+    const t0 = performance.now();
+    for (let k = 0; k < sp.per; k++) { if (!go()) { drawAll(); return halt(); } if (performance.now() - t0 > 14) break; }
+    drawAll();
+  }
+  raf = requestAnimationFrame(frame);
+}
+function start() { if (N === 0) setup(); if (stopped) return; running = true; lastFrame = 0; $('btn-go').textContent = 'Stop'; $('btn-go').classList.add('running'); setStatus('Running.', false); raf = requestAnimationFrame(frame); }
+function halt() { running = false; cancelAnimationFrame(raf); $('btn-go').textContent = 'Go'; $('btn-go').classList.remove('running'); if (!stopped) setStatus('Paused.', false); }
+function setStatus(msg, isStop) { stopped = isStop; const el = $('status'); el.textContent = msg; el.classList.toggle('stopped', isStop); }
+
+$('btn-setup').addEventListener('click', () => { halt(); setup(); });
+$('btn-go').addEventListener('click', () => running ? halt() : start());
+$('btn-step').addEventListener('click', () => { if (running) halt(); if (N === 0) setup(); if (go()) drawAll(); });
+$('btn-reseed').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 2 ** 31); });
+document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); running ? halt() : start(); } });
+$('btn-csv').addEventListener('click', async () => {
+  const p = P();
+  const head = `# RandomMovementSIR seed=${seedUsed} NumberOfPeople=${N} InitiallyInfectious=${p.I0} Radius=${p.radius} ProbTransmission=${p.p} PeriodsInfectious=${p.tI} PerpetuallyInfectious=${p.perpI} PeriodsRemoved=${p.tR} PerpetuallyRemoved=${p.perpR}\n`;
+  const csv = head + 'tick,susceptible,infectious,removed\n' + hist.map(h => h.join(',')).join('\n') + '\n';
+  try { await navigator.clipboard.writeText(csv); $('btn-csv').textContent = 'Copied'; } catch { $('btn-csv').textContent = 'Copy failed'; }
+  setTimeout(() => { $('btn-csv').textContent = 'Copy CSV'; }, 1500);
+});
+
+// ---------- rendering: world ----------
+const world = $('world'), wctx = world.getContext('2d');
+const css = () => getComputedStyle(document.documentElement);
+let dpr = 1, patchPx = 13, sprites = null, spriteKey = '';
+function makeSprite(color, size) {
+  const c = document.createElement('canvas'); c.width = c.height = Math.ceil(size); const g = c.getContext('2d');
+  const k = size / 300; g.fillStyle = color; g.scale(k, k);
+  // NetLogo "person" shape, 300 x 300 box
+  g.beginPath(); g.arc(150, 45, 40, 0, Math.PI * 2); g.fill();
+  const poly = pts => { g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.closePath(); g.fill(); };
+  poly([105,90,120,195,90,285,105,300,135,300,150,225,165,300,195,300,210,285,180,195,195,90]);
+  g.fillRect(127, 79, 45, 15);
+  poly([195,90,240,150,225,180,165,105]);
+  poly([105,90,60,150,75,180,135,105]);
+  return c;
+}
+function sizeWorld() {
+  const rect = world.getBoundingClientRect(); if (rect.width === 0) return;
+  dpr = window.devicePixelRatio || 1;
+  const px = Math.round(rect.width * dpr); world.width = px; world.height = px; patchPx = px / W;
+  const cs = css(); const key = `${px}|${cs.getPropertyValue('--s')}|${cs.getPropertyValue('--i')}|${cs.getPropertyValue('--r')}`;
+  if (key !== spriteKey) { spriteKey = key; sprites = [makeSprite(cs.getPropertyValue('--s').trim(), patchPx), makeSprite(cs.getPropertyValue('--i').trim(), patchPx), makeSprite(cs.getPropertyValue('--r').trim(), patchPx)]; }
+}
+function drawWorld() {
+  if (!sprites) sizeWorld(); if (!sprites) return;
+  wctx.fillStyle = '#000'; wctx.fillRect(0, 0, world.width, world.height);
+  if (N === 0) return;
+  const h = patchPx / 2;
+  // removed first, then susceptible, then infectious on top
+  for (const layer of [R, S, I]) { const sp = sprites[layer]; for (let k = 0; k < N; k++) if (st[k] === layer) wctx.drawImage(sp, (x[k] - EDGE) * patchPx - h, (EDGE + W - y[k]) * patchPx - h); }
+}
+
+// ---------- rendering: chart ----------
+const chart = $('chart'), cctx = chart.getContext('2d'), tip = $('tip');
+let cw = 0, ch = 0, geom = null;
+function niceStep(range, target) { const raw = range / target, pow = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / pow; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pow; }
+function drawChart() {
+  const rect = chart.getBoundingClientRect(); if (rect.width === 0) return;
+  const d = window.devicePixelRatio || 1; cw = rect.width; ch = rect.height;
+  if (chart.width !== Math.round(cw * d)) { chart.width = Math.round(cw * d); chart.height = Math.round(ch * d); }
+  cctx.setTransform(d, 0, 0, d, 0, 0); cctx.clearRect(0, 0, cw, ch);
+  const cs = css(), ink3 = cs.getPropertyValue('--ink-3').trim(), line = cs.getPropertyValue('--line').trim();
+  const cols = [cs.getPropertyValue('--s').trim(), cs.getPropertyValue('--i').trim(), cs.getPropertyValue('--r').trim()];
+  const ml = 38, mr = 10, mt = 8, mb = 22, pw = cw - ml - mr, ph = ch - mt - mb;
+  const xmax = Math.max(10, tick), ymax = Math.max(1, N);
+  geom = { ml, mt, pw, ph, xmax, ymax };
+  cctx.font = '11px ' + cs.getPropertyValue('--mono'); cctx.fillStyle = ink3; cctx.strokeStyle = line; cctx.lineWidth = 1;
+  const ys = niceStep(ymax, 4);
+  for (let v = 0; v <= ymax + 1e-9; v += ys) { const yy = mt + ph - v / ymax * ph; cctx.beginPath(); cctx.moveTo(ml, yy); cctx.lineTo(ml + pw, yy); cctx.stroke(); cctx.textAlign = 'right'; cctx.textBaseline = 'middle'; cctx.fillText(String(Math.round(v)), ml - 5, yy); }
+  const xs = niceStep(xmax, 5);
+  cctx.textAlign = 'center'; cctx.textBaseline = 'top';
+  for (let v = 0; v <= xmax + 1e-9; v += xs) { const xx = ml + v / xmax * pw; cctx.fillText(String(Math.round(v)), xx, mt + ph + 5); }
+  if (hist.length < 1) return;
+  cctx.lineWidth = 2; cctx.lineJoin = 'round';
+  for (const [series, col] of [[3, cols[2]], [1, cols[0]], [2, cols[1]]]) {
+    cctx.strokeStyle = col; cctx.beginPath();
+    for (let k = 0; k < hist.length; k++) { const xx = ml + hist[k][0] / xmax * pw, yy = mt + ph - hist[k][series] / ymax * ph; k ? cctx.lineTo(xx, yy) : cctx.moveTo(xx, yy); }
+    cctx.stroke();
+    const last = hist[hist.length - 1]; cctx.fillStyle = col; cctx.beginPath(); cctx.arc(ml + last[0] / xmax * pw, mt + ph - last[series] / ymax * ph, 3, 0, Math.PI * 2); cctx.fill();
+  }
+}
+chart.addEventListener('mousemove', e => {
+  if (!geom || hist.length === 0) return tip.style.display = 'none';
+  const rect = chart.getBoundingClientRect(); const px = e.clientX - rect.left;
+  const t = Math.round((px - geom.ml) / geom.pw * geom.xmax); const row = hist[Math.max(0, Math.min(hist.length - 1, t))];
+  tip.innerHTML = `<div><span class="t">tick</span><span>${row[0]}</span></div><div><span class="t">S</span><span>${row[1]}</span></div><div><span class="t">I</span><span>${row[2]}</span></div><div><span class="t">R</span><span>${row[3]}</span></div>`;
+  tip.style.display = 'block'; tip.style.left = Math.min(px + 12, cw - 110) + 'px'; tip.style.top = '4px';
+});
+chart.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+function drawStats() {
+  const last = hist[hist.length - 1] || [0, 0, 0, 0]; const tot = N || 1;
+  $('tick').textContent = tick;
+  $('n-s').textContent = last[1]; $('n-i').textContent = last[2]; $('n-r').textContent = last[3];
+  const pct = v => N ? (100 * v / tot).toFixed(1) + '%' : '–';
+  $('p-s').textContent = pct(last[1]); $('p-i').textContent = pct(last[2]); $('p-r').textContent = pct(last[3]);
+  let peak = 0, peakT = 0; for (const h of hist) if (h[2] > peak) { peak = h[2]; peakT = h[0]; }
+  let everN = 0; if (ever) for (let k = 0; k < N; k++) everN += ever[k];
+  $('summary').innerHTML = N ? `Peak infectious <b>${peak}</b> at tick <b>${peakT}</b> · infections <b>${infections}</b> · agents ever infected <b>${everN}</b> (${pct(everN)}) · seed <b>${seedUsed}</b>` : 'Peak infectious <b>–</b> · infections <b>–</b>';
+}
+function drawAll() { drawWorld(); drawChart(); drawStats(); }
+
+const ro = new ResizeObserver(() => { sizeWorld(); drawAll(); });
+ro.observe(world); ro.observe(chart);
+if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { spriteKey = ''; sizeWorld(); drawAll(); });
+new MutationObserver(() => { spriteKey = ''; sizeWorld(); drawAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+sizeWorld(); setup();
+})();
+</script>
+</body>
+</html>

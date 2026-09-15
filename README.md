@@ -28,6 +28,7 @@ reference.
 - `grids/`: YAML sweep grids (`corpus-v1.yaml` is the mechanism-square sweep).
 - `tests/smoke_tests.R`: scenario acceptance tests; must print ALL PASS.
 - `docs/`: proposals and the schema reference.
+- `web/`: static browser apps, deployed to GitHub Pages by `.github/workflows/pages.yml` (repository Settings -> Pages -> Source: GitHub Actions, once). `web/random-movement-sir/index.html` is a dependency-free port of the NetLogo `RandomMovementSIR` model: open the file locally or serve `web/` with any static server.
 
 ## Quick start
 
