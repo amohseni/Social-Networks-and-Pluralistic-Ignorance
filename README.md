@@ -28,6 +28,7 @@ reference.
 - `grids/`: YAML sweep grids (`corpus-v1.yaml` is the mechanism-square sweep).
 - `tests/smoke_tests.R`: scenario acceptance tests; must print ALL PASS.
 - `docs/`: proposals and the schema reference.
+- `sir/`: a separate, self-contained browser port of the NetLogo SIR-on-networks model (`sir/README.md`); not part of the Shiny app.
 
 ## Quick start
 
