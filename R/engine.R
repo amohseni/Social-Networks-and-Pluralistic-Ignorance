@@ -40,6 +40,7 @@ default_params <- function() {
     lambda = 4,                 # S2: centrality exponent
     pure = TRUE,                # S2: c_i = 0 for all (structure only)
     centrality = "degree",      # S2: degree | eigenvector | betweenness
+    perception = "declarations", # what agents observe in their neighbors: declarations | attitudes (clairvoyant)
     psi = 0.7,                  # S3: fraction changing their mind
     homophily = 0,              # extension: target share of edges rewired toward same-attitude ties
     internalization = 0,        # extension: per-round probability that a falsifying agent adopts its declaration
@@ -55,10 +56,17 @@ merge_params <- function(p) {
 }
 
 SCENARIO_NAMES <- c(S1 = "Conformity from a random start", S2 = "Well-connected minority", S3 = "Private change of mind")
-CLASS_NAMES <- c("S1" = "Random start", "S2-pure" = "Well-connected minority, no conformity",
-                 "S2-mixed" = "Well-connected minority, with conformity", "S3" = "Private change of mind")
+NETWORK_NAMES <- c(ba = "preferential attachment (Barabási-Albert)", er = "random graph (Erdős-Rényi)", small_world = "small world (Watts-Strogatz)",
+                   regular = "regular lattice", core_periphery = "core-periphery", complete = "complete", ring = "ring", star = "star")
+CLASS_NAMES <- c("S1" = "Random start", "S3" = "Private change of mind",
+                 "S2-pure" = "Well-connected minority, conformity off",
+                 "S2-mixed" = "Well-connected minority, conformity to declarations",
+                 "S2-clairvoyant" = "Well-connected minority, conformity to true attitudes")
 
-scenario_label <- function(p) if (p$scenario == "S2") (if (isTRUE(p$pure)) "S2-pure" else "S2-mixed") else p$scenario
+scenario_label <- function(p) {
+  if (p$scenario != "S2") return(p$scenario)
+  if (isTRUE(p$pure)) "S2-pure" else if (identical(p$perception, "attitudes")) "S2-clairvoyant" else "S2-mixed"
+}
 scenario_name <- function(p) unname(CLASS_NAMES[scenario_label(p)])
 
 # ------------------------------------------------------------------ topologies
@@ -211,10 +219,12 @@ weighted_sample_wor <- function(w, k) {
 
 # U_i(D) = c_i N_i(D) + (1 - c_i) 1[D = A_i]. Declaring A_i beats
 # declaring 1 - A_i by (1 - c_i) - c_i (1 - 2 N_i(A_i)); ties go to A_i.
-best_response <- function(i, a, cpar, D, nbrs) {
+# N_i is computed from what the agent observes: neighbors' declarations, or,
+# with clairvoyant perception, neighbors' true attitudes (obs).
+best_response <- function(i, a, cpar, D, nbrs, obs = D) {
   nb <- nbrs[[i]]
   if (length(nb) == 0) return(a[i])
-  n_own <- mean(D[nb] == a[i])
+  n_own <- mean(obs[nb] == a[i])
   gain <- (1 - cpar[i]) - cpar[i] * (1 - 2 * n_own)
   if (gain >= 0) a[i] else 1L - a[i]
 }
@@ -225,10 +235,11 @@ run_to_fixed_point <- function(st, p, log_trajectory = TRUE) {
   rho <- p$internalization %||% 0
   traj_D <- numeric(0); traj_a <- numeric(0); n_flips <- 0L
   converged <- FALSE; rounds <- 0L
+  clair <- identical(p$perception, "attitudes")
   for (t in seq_len(p$max_rounds)) {
     ord <- sample.int(n); changed <- 0L
     for (i in ord) {
-      d_new <- best_response(i, a, cpar, D, nbrs)
+      d_new <- best_response(i, a, cpar, D, nbrs, obs = if (clair) a else D)
       if (d_new != D[i]) { D[i] <- d_new; changed <- changed + 1L }
     }
     flipped <- 0L

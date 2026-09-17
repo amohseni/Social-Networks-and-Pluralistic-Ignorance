@@ -10,6 +10,7 @@
 #   F. Survey designs, exports, sweep pipeline, extensions.
 #   G. Best-response sanity.
 #   H. Blinded corpus: every dataset shows the pattern, coding flips are consistent, ids anonymous, scoring works.
+#   H9. The two conformity versions of the well-connected minority generate and are keyed correctly.
 
 here <- tryCatch(dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE)))), error = function(e) ".")
 root <- normalizePath(file.path(here, ".."))
@@ -28,35 +29,33 @@ check("G2: c = 1 follows the local majority", best_response(1L, a = c(1L, 0L, 0L
 check("G3: the switch point is (1 - c) = c (1 - 2 N): c = 0.5 with no support ties toward the attitude, c = 0.51 flips",
       best_response(1L, c(1L, 0L, 0L, 0L), c(0.5, 0, 0, 0), c(1L, 0L, 0L, 0L), nb) == 1L && best_response(1L, c(1L, 0L, 0L, 0L), c(0.51, 0, 0, 0), c(1L, 0L, 0L, 0L), nb) == 0L)
 
-# A. random start (preferential attachment, n = 200, pi0 = 0.6)
-freqs <- list(); mis <- list(PI = c(), noPI = c())
-for (lab in c("uniform", "beta61")) {
-  cls <- character(0)
-  for (s in 1:60) {
-    p <- list(scenario = "S1", n = 200, topology = "ba", m = 2, pi0 = 0.6, seed = s)
-    if (lab == "beta61") { p$c_dist <- "beta"; p$c_a <- 6; p$c_b <- 1 }
-    gt <- gt_checked(run_scenario(p))
-    k <- if (gt$pluralistic_ignorance) "PI" else "noPI"; cls <- c(cls, k)
-    if (lab == "beta61") mis[[k]] <- c(mis[[k]], abs(gt$term_misperception))
-  }
-  freqs[[lab]] <- table(factor(cls, levels = c("noPI", "PI")))
-  cat(sprintf("Random start, c ~ %s, 60 seeds: no PI %d, PI %d\n", lab, freqs[[lab]]["noPI"], freqs[[lab]]["PI"]))
+# A. random start (preferential attachment, n = 150, pi0 = 0.6)
+res <- list()
+for (lab in c("uniform", "beta121", "sincere")) {
+  res[[lab]] <- t(sapply(1:80, function(s) {
+    p <- list(scenario = "S1", n = 150, topology = "ba", m = 2, pi0 = 0.6, seed = s)
+    if (lab == "beta121") { p$c_dist <- "beta"; p$c_a <- 12; p$c_b <- 1 }
+    if (lab == "sincere") { p$c_dist <- "point"; p$c_point <- 0 }
+    gt <- gt_checked(run_scenario(p)); c(pattern = gt$pattern_present, prevalence = gt$pi_prevalence, apparent = gt$apparent_share) }))
+  cat(sprintf("Random start, c ~ %s, 80 seeds: pattern in %d runs; mean prevalence %.3f; mean share believing local minority %.3f\n", lab, sum(res[[lab]][, "pattern"]), mean(res[[lab]][, "prevalence"]), mean(res[[lab]][, "apparent"])))
 }
-check("A1: both outcome classes occur", freqs$beta61["noPI"] > 5 && freqs$beta61["PI"] > 3)
-check("A2: conformist-heavy types raise the PI frequency", freqs$beta61["PI"] > freqs$uniform["PI"])
-check("A3: PI runs carry larger absolute misperception than no-PI runs", mean(mis$PI) > mean(mis$noPI))
+check("A1: the pattern occurs under strong conformity and never with sincere declarations", sum(res$beta121[, "pattern"]) >= 2 && sum(res$sincere[, "pattern"]) == 0)
+check("A2: conformist-heavy types raise the prevalence of pluralistic ignorance", mean(res$beta121[, "prevalence"]) > mean(res$uniform[, "prevalence"]) && all(res$sincere[, "prevalence"] == 0))
+check("A3: runs showing the pattern have higher prevalence than runs without", mean(res$beta121[res$beta121[, "pattern"] == 1, "prevalence"]) > mean(res$beta121[res$beta121[, "pattern"] == 0, "prevalence"]))
+gt <- gt_checked(run(scenario = "S1", n = 150, topology = "ba", m = 2, pi0 = 0.6, c_dist = "beta", c_a = 12, c_b = 1, seed = which(res$beta121[, "pattern"] == 1)[1]))
+check("A4: a random-start run with the pattern has positive prevalence, for holders of both attitudes", gt$pi_prevalence > 0 && gt$pi_prevalence_a1 > 0 && gt$pi_prevalence_a0 > 0)
 
 # B. well-connected minority, no conformity
 gt <- gt_checked(run(scenario = "S2", n = 101, topology = "star", pi0 = 0.99, lambda = 50, pure = TRUE, seed = 1))
-cat(sprintf("Star: p=%.4f majority perceived share=%.4f mis=%.4f struct=%.4f PI=%s\n", gt$p, gt$majority_mean_perceived_share, gt$term_misperception, gt$term_structure, gt$pluralistic_ignorance))
+cat(sprintf("Star: p=%.4f share believing local minority=%.4f mis=%.4f struct=%.4f pattern=%s PI prevalence=%.3f\n", gt$p, gt$apparent_share, gt$term_misperception, gt$term_structure, gt$pattern_present, gt$pi_prevalence))
 check("B1: star, zero misperception", abs(gt$term_misperception) < 1e-12)
-check("B2: star, pluralistic ignorance from structure alone", gt$pluralistic_ignorance && gt$term_structure < 0)
+check("B2: star, the pattern with zero prevalence of pluralistic ignorance", gt$pattern_present && gt$term_structure < 0 && gt$pi_prevalence == 0)
 hits <- 0
-for (s in 1:30) { gt <- gt_checked(run(scenario = "S2", n = 300, topology = "ba", m = 2, pi0 = 0.7, lambda = 6, pure = TRUE, seed = s)); stopifnot(abs(gt$term_misperception) < 1e-12); hits <- hits + gt$pluralistic_ignorance }
+for (s in 1:30) { gt <- gt_checked(run(scenario = "S2", n = 300, topology = "ba", m = 2, pi0 = 0.7, lambda = 6, pure = TRUE, seed = s)); stopifnot(abs(gt$term_misperception) < 1e-12, gt$pi_prevalence == 0); hits <- hits + gt$pattern_present }
 cat(sprintf("Preferential attachment (m=2), lambda=6, no conformity: PI in %d/30 runs\n", hits))
-check("B3: structure-only PI occurs in a majority of preferential-attachment runs", hits >= 15)
+check("B3: the pattern with conformity off occurs in a majority of preferential-attachment runs, always with zero prevalence", hits >= 15)
 gt <- gt_checked(run(scenario = "S2", n = 300, topology = "regular", k = 6, pi0 = 0.7, lambda = 6, pure = TRUE, seed = 3))
-check("B4: regular network forces the structure term to 0 and no PI", abs(gt$term_structure) < 1e-12 && !gt$pluralistic_ignorance)
+check("B4: regular network forces the structure term to 0 and no pattern", abs(gt$term_structure) < 1e-12 && !gt$pattern_present)
 for (cen in c("eigenvector", "betweenness")) { gt <- gt_checked(run(scenario = "S2", n = 200, topology = "ba", m = 2, pi0 = 0.7, lambda = 4, pure = TRUE, centrality = cen, seed = 2)); check(sprintf("B5: %s centrality runs with zero misperception", cen), abs(gt$term_misperception) < 1e-12 && gt$converged) }
 gt0 <- gt_checked(run(scenario = "S2", n = 300, topology = "ba", m = 2, pi0 = 0.7, lambda = 0, pure = TRUE, seed = 4))
 check("B6: lambda = 0 places the minority at random (|structure term| small)", abs(gt0$term_structure) < 0.05)
@@ -65,15 +64,27 @@ check("B6: lambda = 0 places the minority at random (|structure term| small)", a
 out <- list()
 for (lab in c("uniform", "beta31")) {
   res <- t(sapply(1:40, function(s) { p <- list(scenario = "S3", n = 100, topology = "complete", psi = 0.7, seed = s); if (lab == "beta31") { p$c_dist <- "beta"; p$c_a <- 3; p$c_b <- 1 }
-    st <- run_scenario(p); gt <- gt_checked(st); c(gt$pluralistic_ignorance, mean(st$D)) }))
+    st <- run_scenario(p); gt <- gt_checked(st); c(gt$pattern_present && gt$pi_prevalence > 0, mean(st$D)) }))
   out[[lab]] <- c(persist = sum(res[, 1]), tip = sum(res[, 2] < 0.5))
   cat(sprintf("Private change (complete, psi=0.7), c ~ %s: %d/40 persist (PI), %d/40 tip\n", lab, out[[lab]]["persist"], out[[lab]]["tip"]))
 }
 check("C1: uniform conformity mostly tips; beta(3,1) mostly persists", out$uniform["tip"] > 30 && out$beta31["persist"] > 30)
 found <- NULL
-for (s in 1:40) { st <- run(scenario = "S3", n = 200, topology = "regular", k = 8, psi = 0.7, c_dist = "beta", c_a = 3, c_b = 1, seed = 1000 + s); gt <- gt_checked(st); if (gt$pluralistic_ignorance) { found <- gt; break } }
+for (s in 1:40) { st <- run(scenario = "S3", n = 200, topology = "regular", k = 8, psi = 0.7, c_dist = "beta", c_a = 3, c_b = 1, seed = 1000 + s); gt <- gt_checked(st); if (gt$pattern_present && gt$pi_prevalence > 0) { found <- gt; break } }
 check("C2: a persistence run exists on a regular network", !is.null(found))
 if (!is.null(found)) check("C3: its gap is pure misperception (structure term 0)", abs(found$term_structure) < 1e-12 && abs(found$term_misperception) > 0.1)
+
+# B7. with conformity on, gross misperception is large even where the net term is small
+gt <- gt_checked(run(scenario = "S2", n = 150, topology = "ba", m = 2, pi0 = 0.7, lambda = 8, pure = FALSE, c_dist = "beta", c_a = 3, c_b = 1, seed = 6081))
+cat(sprintf("Well-connected minority with conformity: net misperception %.3f, gross %.3f, falsified share %.3f\n", gt$term_misperception, gt$misperception_gross, gt$falsified_share))
+check("B7: gross misperception exceeds the absolute net term with conformity on", gt$misperception_gross > abs(gt$term_misperception) && gt$misperception_gross > 0.1)
+gt0 <- gt_checked(run(scenario = "S2", n = 150, topology = "ba", m = 2, pi0 = 0.7, lambda = 8, pure = TRUE, seed = 6081))
+check("B8: gross misperception is exactly zero with conformity off", gt0$misperception_gross == 0)
+gtc <- gt_checked(run(scenario = "S2", n = 150, topology = "ba", m = 2, pi0 = 0.7, lambda = 8, pure = FALSE, perception = "attitudes", c_dist = "beta", c_a = 3, c_b = 1, seed = 6081))
+cat(sprintf("Conformity to true attitudes: falsified share %.3f, misperception term %.4f, gross %.4f, PI prevalence %.3f, pattern %s\n", gtc$falsified_share, gtc$term_misperception, gtc$misperception_gross, gtc$pi_prevalence, gtc$pattern_present))
+check("B9: conformity to true attitudes falsifies but never misperceives, so prevalence is zero", gtc$falsified_share > 0 && gtc$misperception_gross == 0 && abs(gtc$term_misperception) < 1e-12 && gtc$pi_prevalence == 0)
+svc <- survey(run(scenario = "S2", n = 150, topology = "ba", m = 2, pi0 = 0.7, lambda = 8, pure = FALSE, perception = "attitudes", c_dist = "beta", c_a = 3, c_b = 1, seed = 6081), 150, 1)
+check("B10: clairvoyant survey reports true contact attitudes and a zero edge-end test", all(svc$ego_network$perceived_neighbor_attitude == svc$ego_network$neighbor_attitude) && abs(edge_end_estimates(svc$respondents, svc$ego_network)$net_misperception) < 1e-12)
 
 # E. edge-end estimator
 st <- run(scenario = "S3", n = 400, topology = "regular", k = 8, psi = 0.65, c_dist = "beta", c_a = 2, c_b = 1, seed = 7); gt <- gt_checked(st)
@@ -108,31 +119,41 @@ td1 <- tempfile(); write_run(st, survey(st, 50, 1), td1, include = "degree")
 check("F9: a design without contact perceptions writes no ego_network.csv", file.exists(file.path(td1, "respondents.csv")) && !file.exists(file.path(td1, "ego_network.csv")))
 spec <- yaml::read_yaml(file.path(root, "grids", "smoke.yaml")); cells <- expand_grid_spec(spec)
 td2 <- tempfile(); mf <- run_sweep(cells, td2, seeds_per_cell = 2, m_list = spec$m, name = "smoke")
-check("F10: smoke sweep writes a manifest with one row per run", nrow(mf) == 2 * length(cells) && file.exists(file.path(td2, "manifest.csv")) && all(mf$converged) && "pluralistic_ignorance" %in% names(mf))
+check("F10: smoke sweep writes a manifest with one row per run", nrow(mf) == 2 * length(cells) && file.exists(file.path(td2, "manifest.csv")) && all(mf$converged) && all(c("pi_prevalence", "pattern_present") %in% names(mf)))
 spec1 <- yaml::read_yaml(file.path(root, "grids", "corpus-v1.yaml")); c1 <- expand_grid_spec(spec1)
 cat(sprintf("corpus-v1 grid: %d cells; at %d seeds per cell = %d runs; rough time %.0f min\n", length(c1), spec1$seeds_per_cell, length(c1) * spec1$seeds_per_cell, estimate_runtime_seconds(c1, spec1$seeds_per_cell, 4) / 60))
 check("F11: corpus-v1 grid expands", length(c1) > 600)
 
 # H. blinded corpus
-s <- default_corpus_settings(); s$per_scenario[] <- 3L; s$n_range <- c(120L, 200L); s$respondents <- 80L
+s <- default_corpus_settings(); s$per_scenario[] <- 0L; s$per_scenario[c("S1", "S3", "S2-pure")] <- 3L; s$n_range <- c(120L, 200L); s$respondents <- 80L; s$conformity_a_range <- c(8, 12)
 td3 <- tempfile(); key <- generate_blinded_corpus(s, td3)
-check("H1: corpus has the requested datasets, all showing the pattern in the population", nrow(key) == 9 && all(table(key$scenario_code) == 3) && all(key$majority_mean_perceived_share < 0.5))
-check("H2: blinded folder has README and one folder per dataset; key kept outside it",
-      file.exists(file.path(td3, "blinded", "README.txt")) && length(list.dirs(file.path(td3, "blinded", "datasets"), recursive = FALSE)) == 9 && file.exists(file.path(td3, "key.csv")) && !file.exists(file.path(td3, "blinded", "key.csv")))
-r1 <- read.csv(file.path(td3, "blinded", "datasets", key$dataset_id[1], "respondents.csv")); e1 <- read.csv(file.path(td3, "blinded", "datasets", key$dataset_id[1], "ego_network.csv"))
-check("H3: blinded files carry only the recorded columns", identical(names(r1), c("respondent_id", "attitude", "perceived_prevalence", "degree", "declaration")) && identical(names(e1), c("respondent_id", "neighbor_slot", "perceived_neighbor_attitude", "neighbor_degree")))
-det <- readRDS(file.path(td3, "key_details", paste0(key$dataset_id[1], ".rds")))
+check("H1: corpus has the requested datasets, all showing the pattern in the population", nrow(key) == 9 && all(table(key$scenario_code) == 3) && all(key$apparent_share > 0.5))
+rall <- read.csv(file.path(td3, "blinded", "respondents.csv")); eall <- read.csv(file.path(td3, "blinded", "ego_network.csv"))
+check("H2: blinded folder has README and stacked CSVs covering every dataset; key kept outside it",
+      file.exists(file.path(td3, "blinded", "README.txt")) && length(unique(rall$dataset_id)) == 9 && file.exists(file.path(td3, "key.csv")) && !file.exists(file.path(td3, "blinded", "key.csv")))
+r1 <- rall[rall$dataset_id == key$dataset_id[1], -1]; e1 <- eall[eall$dataset_id == key$dataset_id[1], -1]
+check("H3: blinded files carry only the recorded columns", identical(names(rall), c("dataset_id", "respondent_id", "attitude", "perceived_prevalence", "degree", "declaration")) && identical(names(eall), c("dataset_id", "respondent_id", "neighbor_slot", "perceived_neighbor_attitude", "neighbor_degree")))
+nodes <- read.csv(file.path(td3, "key_details", "nodes.csv")); edges <- read.csv(file.path(td3, "key_details", "edges.csv"))
+mm <- merge(rall, nodes, by.x = c("dataset_id", "respondent_id"), by.y = c("dataset_id", "node_id"))
+check("H3b: nodes.csv agrees with respondents.csv on every shared column and prevalence", nrow(mm) == nrow(rall) && all(mm$attitude.x == mm$attitude.y) && all(mm$declaration.x == mm$declaration.y) && all(mm$degree.x == mm$degree.y) && all(mm$sampled) &&
+      max(abs(tapply(nodes$pluralistic_ignorance, nodes$dataset_id, mean)[key$dataset_id] - key$pi_prevalence)) < 1e-12 && all(edges$node_a != edges$node_b))
 maj_coded <- if (mean(r1$attitude) >= 0.5) 1L else 0L
 check("H4: the majority as coded matches the key and the sample shows the pattern the same way",
-      maj_coded == key$majority_attitude_as_coded[1] && key$pattern_in_sample[1] == sample_shows_pattern(r1))
+      maj_coded == key$majority_attitude_as_coded[1] && key$pattern_in_sample[1] == sample_shows_pattern(r1) && key$pattern_in_sample[1])
 check("H5: consistency after coding flip: perceived prevalence equals the mean perceived contact attitude",
       max(abs(r1$perceived_prevalence - tapply(e1$perceived_neighbor_attitude, factor(e1$respondent_id, levels = r1$respondent_id), mean))) < 1e-12)
-check("H6: mechanism labels follow the scenarios", all(key$mechanism[key$scenario_code == "S2-pure"] == "friendship paradox") && all(key$mechanism[key$scenario_code != "S2-pure"] == "genuine pluralistic ignorance"))
-pred <- data.frame(dataset_id = key$dataset_id, prediction = ifelse(key$falsified_share > 0, "genuine", "structure"), score = key$falsified_share)
+check("H6: mechanism labels follow the scenarios and prevalence is zero exactly for conformity off", all(key$mechanism[key$scenario_code == "S2-pure"] == "friendship paradox") && all(key$mechanism[key$scenario_code != "S2-pure"] == "genuine pluralistic ignorance") && all(key$pi_prevalence[key$scenario_code == "S2-pure"] == 0) && all(key$pi_prevalence[key$scenario_code != "S2-pure"] > 0))
+pred <- data.frame(dataset_id = key$dataset_id, prediction = ifelse(key$falsified_share > 0, "genuine", "structure"), score = key$falsified_share, pi_prevalence = key$pi_prevalence)
 sc <- score_predictions(key, pred)
-check("H7: scoring a perfect prediction gives accuracy 1 and AUC 1", sc$accuracy == 1 && sc$auc == 1 && sc$n_scored == 9)
+check("H7: scoring a perfect prediction gives accuracy 1, AUC 1, and zero prevalence error", sc$accuracy == 1 && sc$auc == 1 && sc$n_scored == 9 && sc$prevalence_mae == 0)
 pred2 <- pred; pred2$prediction <- rev(pred2$prediction)
 check("H8: scoring reports imperfect predictions", score_predictions(key, pred2)$accuracy < 1)
+s2 <- s; s2$per_scenario[] <- 0L; s2$per_scenario[c("S2-mixed", "S2-clairvoyant")] <- 2L
+key2 <- generate_blinded_corpus(s2, tempfile())
+s3 <- s; s3$per_scenario[] <- 0L; s3$per_scenario["S3"] <- 2L; s3$network <- "small_world"
+key3 <- generate_blinded_corpus(s3, tempfile())
+check("H10: another network family runs through the corpus and is named in the key", nrow(key3) == 2 && all(key3$network == "small world (Watts-Strogatz)") && all(key3$ring_contacts %in% c(4, 6, 8)) && all(key3$rewiring_share >= 0.05 & key3$rewiring_share <= 0.3))
+check("H9: conformity versions of the well-connected minority are generated and keyed", nrow(key2) == 4 && all(key2$mechanism == "friendship paradox") && all(key2$perception[key2$scenario_code == "S2-clairvoyant"] == "attitudes") && all(key2$pi_prevalence[key2$scenario_code == "S2-clairvoyant"] == 0) && all(key2$falsified_share > 0))
 
 cat(sprintf("\nelapsed %.1f s\n", as.numeric(difftime(Sys.time(), t0, units = "secs"))))
 cat(if (length(FAIL) == 0) "ALL PASS\n" else paste0("FAILURES: ", paste(FAIL, collapse = "; "), "\n"))

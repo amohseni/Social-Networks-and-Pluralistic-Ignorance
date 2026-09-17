@@ -43,7 +43,7 @@ run_record <- function(st, gt, extra = list()) {
   obs <- gt[c("n_edges", "mean_degree", "sd_degree", "max_degree")]
   names(obs) <- c("n_edges", "obs_mean_degree", "obs_sd_degree", "obs_max_degree")   # the params column mean_degree is the ER input
   c(pj, obs, gt[c("degree_assortativity", "edge_homophily", "p", "p_tilde", "q_hat_census", "mean_perceived_prevalence",
-                  "gap", "term_misperception", "term_structure", "falsified_share", "deg_weighted_net_falsification",
-                  "majority_mean_perceived_share", "share_majority_perceiving_minority", "pluralistic_ignorance",
+                  "gap", "term_misperception", "term_structure", "misperception_gross", "falsified_share", "deg_weighted_net_falsification",
+                  "apparent_share", "pattern_present", "pi_prevalence", "pi_prevalence_a1", "pi_prevalence_a0",
                   "converged", "rounds")], extra)
 }

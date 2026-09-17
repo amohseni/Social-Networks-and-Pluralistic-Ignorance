@@ -9,11 +9,12 @@ PI_COL <- list(
   blue   = "#3475BC",      # structure term; attitude x; S2-pure
   black  = "black",        # gap; declarations; S1; prediction-style baseline
   blue_light = "#9DC3E6",  # S2-mixed
+  purple = "#8E4A9E",      # prevalence of pluralistic ignorance over all agents (between the red and the blue)
   grey   = "grey55",       # reference lines
   grey_light = "grey85"
 )
 
-PI_CLASS_COL <- c("S1" = PI_COL$black, "S2-pure" = PI_COL$blue, "S2-mixed" = PI_COL$blue_light, "S3" = PI_COL$orange)
+PI_CLASS_COL <- c("S1" = PI_COL$black, "S3" = PI_COL$orange, "S2-pure" = PI_COL$blue, "S2-mixed" = PI_COL$blue_light, "S2-clairvoyant" = "#7A5C9E")
 
 PI_BAND_STYLE <- "background-color:#F2F2F2; margin-top: 30px; margin-bottom: 30px; padding: 10px"
 

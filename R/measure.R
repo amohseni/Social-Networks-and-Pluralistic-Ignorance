@@ -9,33 +9,46 @@
 # declaring 1, and r_j = sum_{i in N(j)} 1/d_i the reach of j (mean reach is 1).
 ground_truth <- function(st) {
   g <- st$g; n <- g$n; deg <- g$deg; a <- st$a; D <- st$D
+  clair <- identical(st$params$perception, "attitudes")
+  perc <- if (clair) a else D                      # what agents take each neighbor to hold
   p <- mean(a)
   f    <- vapply(g$nbrs, function(nb) if (length(nb)) mean(a[nb]) else NA_real_, numeric(1))
-  fhat <- vapply(g$nbrs, function(nb) if (length(nb)) mean(D[nb]) else NA_real_, numeric(1))
+  fhat <- vapply(g$nbrs, function(nb) if (length(nb)) mean(perc[nb]) else NA_real_, numeric(1))
   ghat <- fhat
   inv_d <- ifelse(deg > 0, 1 / pmax(deg, 1), 0)
   r <- vapply(g$nbrs, function(nb) sum(inv_d[nb]), numeric(1))
   cov_ar <- mean(a * r) - mean(a) * mean(r)
   sum_d <- sum(deg)
   p_tilde <- sum(deg * a) / sum_d                                         # edge-end prevalence
-  q_census <- sum(deg * D) / sum_d                                        # perceived edge-end prevalence (census)
+  q_census <- sum(deg * perc) / sum_d                                     # perceived edge-end prevalence (census)
   mis <- mean(fhat - f, na.rm = TRUE)
+  # gross misperception: mean over agents of the share of their neighbors perceived wrongly
+  wrong <- as.numeric(perc != a)
+  mis_gross <- mean(vapply(g$nbrs, function(nb) if (length(nb)) mean(wrong[nb]) else NA_real_, numeric(1)), na.rm = TRUE)
   mean_ghat <- mean(ghat, na.rm = TRUE)
   gap <- mean_ghat - p
   E <- g$edges
   deg_assort <- if (nrow(E) > 1) suppressWarnings(cor(c(deg[E[, 1]], deg[E[, 2]]), c(deg[E[, 2]], deg[E[, 1]]))) else NA_real_
   edge_homophily <- if (nrow(E) > 0) mean(a[E[, 1]] == a[E[, 2]]) else NA_real_
-  # Pluralistic ignorance (definition): the agents holding the majority attitude
-  # believe, on average, that their attitude is in the minority.
+  # Pluralistic ignorance is a state of an individual agent, judged against the
+  # agent's own neighbors: the agent believes that a majority of its neighbors
+  # hold the attitude opposite to its own; that belief is mistaken (at least half
+  # of its neighbors share its attitude); and it declares the opposite attitude.
+  # It can hold for agents of either attitude.
+  same_true <- vapply(seq_len(n), function(i) { nb <- g$nbrs[[i]]; if (length(nb)) mean(a[nb] == a[i]) else NA_real_ }, numeric(1))
+  same_perc <- vapply(seq_len(n), function(i) { nb <- g$nbrs[[i]]; if (length(nb)) mean(perc[nb] == a[i]) else NA_real_ }, numeric(1))
+  believes_minority <- !is.na(same_perc) & same_perc < 0.5      # believes most neighbors hold the opposite attitude
+  mistaken <- !is.na(same_true) & same_true >= 0.5              # in fact at least half share the agent's attitude
+  conforms <- D != a
+  apparent <- believes_minority                                 # the pattern, whatever the truth or the declaration
+  pi_i <- believes_minority & mistaken & conforms               # pluralistic ignorance
   maj <- if (p >= 0.5) 1L else 0L
-  own_share <- if (maj == 1L) ghat else 1 - ghat          # perceived share of the majority attitude
-  maj_mean <- mean(own_share[a == maj], na.rm = TRUE)
-  share_maj_perceiving_minority <- mean(own_share[a == maj] < 0.5, na.rm = TRUE)
   list(
     n = n, n_edges = nrow(E), mean_degree = mean(deg), sd_degree = sd(deg), max_degree = max(deg),
     degree_assortativity = deg_assort, edge_homophily = edge_homophily,
+    perception = if (clair) "attitudes" else "declarations",
     p = p, p_tilde = p_tilde, q_hat_census = q_census, mean_perceived_prevalence = mean_ghat,
-    gap = gap, term_misperception = mis, term_structure = cov_ar,
+    gap = gap, term_misperception = mis, term_structure = cov_ar, misperception_gross = mis_gross,
     decomposition_residual = gap - (mis + cov_ar),
     falsified_share = mean(D != a),
     falsified_share_a1 = if (any(a == 1)) mean(D[a == 1] != 1) else NA_real_,
@@ -43,9 +56,14 @@ ground_truth <- function(st) {
     deg_weighted_net_falsification = q_census - p_tilde,
     majority_attitude = maj,
     majority_share = max(p, 1 - p),
-    majority_mean_perceived_share = maj_mean,
-    share_majority_perceiving_minority = share_maj_perceiving_minority,
-    pluralistic_ignorance = isTRUE(maj_mean < 0.5),
+    apparent_share = mean(apparent),                       # share of all agents who believe their attitude is the minority among their neighbors
+    apparent_share_a1 = if (any(a == 1)) mean(apparent[a == 1]) else NA_real_,
+    apparent_share_a0 = if (any(a == 0)) mean(apparent[a == 0]) else NA_real_,
+    pattern_present = isTRUE(mean(apparent) > 0.5),
+    pi_prevalence = mean(pi_i),                            # share of all agents in pluralistic ignorance
+    pi_prevalence_a1 = if (any(a == 1)) mean(pi_i[a == 1]) else NA_real_,
+    pi_prevalence_a0 = if (any(a == 0)) mean(pi_i[a == 0]) else NA_real_,
+    pi_individual = pi_i, apparent_individual = apparent,
     mean_conformity = mean(st$conformity),
     n_internalized = st$n_internalized %||% 0L,
     homophily_swaps = st$g$homophily_swaps %||% 0L,
@@ -76,12 +94,13 @@ SURVEY_OPTIONS <- c(
 survey <- function(st, m, survey_seed = 1L, noise_sd = 0) {
   set.seed(as.integer(survey_seed))
   n <- st$g$n; m <- min(as.integer(m), n)
+  perc <- if (identical(st$params$perception, "attitudes")) st$a else st$D   # clairvoyant agents perceive true attitudes
   egos <- sample.int(n, m)
   recs <- lapply(egos, function(i) {
     nb <- st$g$nbrs[[i]]
     slot <- if (length(nb) > 1) sample.int(length(nb)) else seq_along(nb)   # shuffle: contacts anonymous
     nb <- nb[slot]
-    fhat <- if (length(nb)) mean(st$D[nb]) else NA_real_
+    fhat <- if (length(nb)) mean(perc[nb]) else NA_real_
     ghat <- if (noise_sd > 0 && !is.na(fhat)) min(1, max(0, fhat + rnorm(1, 0, noise_sd))) else fhat
     list(id = i, a = st$a[i], b = st$D[i], d = length(nb), ghat = ghat, nb = nb)
   })
@@ -93,7 +112,7 @@ survey <- function(st, m, survey_seed = 1L, noise_sd = 0) {
     declaration = vapply(recs, `[[`, integer(1), "b"))
   ego_network <- do.call(rbind, lapply(recs, function(r) if (r$d > 0) data.frame(
     respondent_id = r$id, neighbor_slot = seq_len(r$d),
-    perceived_neighbor_attitude = st$D[r$nb], neighbor_degree = st$g$deg[r$nb],
+    perceived_neighbor_attitude = perc[r$nb], neighbor_degree = st$g$deg[r$nb],
     neighbor_id = r$nb, neighbor_attitude = st$a[r$nb]) else NULL))
   list(egos = egos, m = m, survey_seed = survey_seed, noise_sd = noise_sd,
        respondents = respondents, ego_network = ego_network)

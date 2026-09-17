@@ -7,9 +7,10 @@ labeled survey data from each mechanism and their mixtures.
 Model: agents on an undirected network with private attitude A_i, public
 declaration D_i and conformity parameter c_i; declaring D pays
 c_i N_i(D) + (1 - c_i) 1[D = A_i]; asynchronous best response in random
-order until a quiet round. Pluralistic ignorance obtains when the holders of
-the majority attitude believe, on average, that their attitude is in the
-minority.
+order until a quiet round. Pluralistic ignorance is a property of an individual agent: it holds the
+majority attitude, believes that a majority of its neighbors hold the opposite
+attitude, that belief is mistaken, and it declares the opposite attitude. The
+prevalence of pluralistic ignorance is the share of agents in that state.
 
 Sources of truth (in the private for-claude repo): `models/pi-fp/design-2026-09-09.md`
 (generators, experiment design) and `notes/2026-09-01-pi-vs-fp-identifiability.md`
@@ -34,25 +35,28 @@ reference.
 ```bash
 Rscript tests/smoke_tests.R
 Rscript -e 'shiny::runApp(".", launch.browser = TRUE)'
-Rscript R/corpus.R corpora/blinded-v1 --per 40 --respondents 150 --seed 1
+Rscript R/corpus.R corpora/blinded-v1 --per 40 --per-variants 20 --respondents 150 --seed 1
 ```
 
 Requires R 4.5 with shiny, bslib, igraph, ggplot2, DT, jsonlite, yaml, zip.
 
 Published app: https://amohseni.shinyapps.io/Social-Networks-and-Pluralistic-Ignorance/ (deploy with `Rscript deploy.R`; see the file for the one-time account setup).
 
-## The blinded corpus
+## The generated corpus
 
 `generate_blinded_corpus()` (Generate corpus tab, or the CLI above) writes
-`<out>/blinded/` for the analysts (a README and one folder per dataset) and
-`<out>/key.csv` plus `<out>/key_details/` for you. Every dataset shows the
-pattern in its population; the mechanism is genuine pluralistic ignorance
-(random start, private change of mind) or the friendship paradox
-(well-connected minority without conformity). Hidden parameters are drawn per
-dataset; all datasets use preferential-attachment networks; the attitude
-coding is flipped at random per dataset; identifiers are anonymous and dataset
-numbers shuffled. `score_predictions()` checks a predictions CSV
-(dataset_id, prediction in {genuine, structure}, optional score) against the key.
+`<out>/blinded/` for the analysts (README.txt, respondents.csv, ego_network.csv,
+all datasets stacked and identified by dataset_id) and, for the person running
+the test, `<out>/key.csv` plus `<out>/key_details/nodes.csv` and `edges.csv`
+(every agent and tie of every population). Everything is CSV.
+Pluralistic ignorance obtains in every dataset, in the population and in the
+sample. The process is genuine pluralistic ignorance (random start, private
+change of mind) or the friendship paradox (well-connected minority with
+conformity off). Parameters are drawn at random for each dataset; all datasets
+use preferential-attachment networks; the attitude coding is reversed in a
+random half of the datasets; respondent identifiers and dataset numbers are
+assigned at random. `score_predictions()` compares a predictions CSV
+(dataset_id, prediction in {genuine, structure}, optional score) with the key.
 
 ## Exported data
 
