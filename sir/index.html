@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SIR on Networks</title>
+<meta name="description" content="Susceptible, infectious, removed contagion on random, small-world, complete and connected-caveman networks. A browser port of the NetLogo model SIR-1.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --ground: #F5F5F2;
+    --panel: #FFFFFF;
+    --panel-2: #EEEEEA;
+    --ink: #1B1B1A;
+    --ink-2: #5A5A56;
+    --ink-3: #8B8B85;
+    --rule: #DDDDD7;
+    --rule-2: #C9C9C2;
+    --accent: #3475BC;
+    --accent-ink: #FFFFFF;
+    --s: #3475BC;
+    --i: #EE4000;
+    --r: #199E70;
+    --edge: rgba(27, 27, 26, 0.16);
+    --focus: #3475BC;
+    --shadow: 0 1px 2px rgba(0,0,0,0.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #141416;
+      --panel: #1E1E21;
+      --panel-2: #27272B;
+      --ink: #ECECE8;
+      --ink-2: #B5B5AF;
+      --ink-3: #85857F;
+      --rule: #34343A;
+      --rule-2: #46464D;
+      --accent: #5C95D6;
+      --accent-ink: #0F1A28;
+      --s: #5C95D6;
+      --i: #F0603A;
+      --r: #2DB884;
+      --edge: rgba(236, 236, 232, 0.16);
+      --focus: #5C95D6;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #141416;
+    --panel: #1E1E21;
+    --panel-2: #27272B;
+    --ink: #ECECE8;
+    --ink-2: #B5B5AF;
+    --ink-3: #85857F;
+    --rule: #34343A;
+    --rule-2: #46464D;
+    --accent: #5C95D6;
+    --accent-ink: #0F1A28;
+    --s: #5C95D6;
+    --i: #F0603A;
+    --r: #2DB884;
+    --edge: rgba(236, 236, 232, 0.16);
+    --focus: #5C95D6;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding-inline: 20px; padding-block: 20px 48px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-bottom: 18px; }
+  header.top h1 { font-size: 24px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  header.top p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+
+  .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  aside.controls { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px 16px; box-shadow: var(--shadow); }
+  @media (min-width: 901px) { aside.controls { position: sticky; top: env(safe-area-inset-top, 0px); max-height: calc(100vh - 12px); overflow-y: auto; } }
+
+  .btnrow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  button {
+    font: inherit; font-weight: 500; font-size: 14px;
+    padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink);
+  }
+  button:hover { border-color: var(--ink-3); }
+  button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary[aria-pressed="true"] { background: var(--i); border-color: var(--i); color: #fff; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .status { min-height: 1.5em; font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
+  .status.warn { color: var(--i); }
+
+  fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+  legend { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); padding: 0; margin-bottom: 6px; }
+  .param { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding-block: 5px; border-top: 1px solid var(--rule); }
+  .param label { font-size: 14px; }
+  .param .hint { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); line-height: 1.3; }
+  .param input[type="number"], .param input[type="text"], .param select {
+    font: inherit; font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+    width: 78px; padding: 3px 6px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--panel); color: var(--ink); text-align: right;
+  }
+  .param select { width: auto; font-family: inherit; text-align: left; grid-column: 1 / -1; }
+  .param input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 2px 0 0; accent-color: var(--accent); }
+  .param.toggle { grid-template-columns: 1fr auto; }
+  .param input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .param.disabled { opacity: 0.45; }
+
+  main { display: grid; gap: 16px; min-width: 0; }
+  .views { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; }
+  @media (max-width: 1100px) { .views { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px 14px; box-shadow: var(--shadow); min-width: 0; }
+  .card h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ink-2); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .card h2 span.sub { font-weight: 400; color: var(--ink-3); font-size: 12px; }
+  .canvas-box { position: relative; width: 100%; }
+  .net-box { aspect-ratio: 1 / 1; max-width: 100%; }
+  .plot-box { height: 300px; }
+  canvas { display: block; width: 100%; height: 100%; border-radius: 4px; touch-action: none; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 2;
+    background: var(--panel); border: 1px solid var(--rule-2); border-radius: 6px; box-shadow: var(--shadow);
+    padding: 6px 9px; font-size: 12px; color: var(--ink-2); white-space: nowrap; line-height: 1.4;
+  }
+  .tip strong { color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 500; }
+  .tip .key { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+  .legend .key { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .tile { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+  .tile .label { font-size: 12px; color: var(--ink-3); }
+  .tile .value { font-size: 24px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+  .tile .value small { font-size: 12px; font-weight: 400; color: var(--ink-3); margin-left: 4px; }
+  .tile .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+  .netstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 18px; font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+  .netstats div span { display: block; color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+
+  details { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; }
+  details summary { cursor: pointer; font-weight: 500; font-size: 14px; }
+  details .body { margin-top: 8px; color: var(--ink-2); max-width: 70ch; }
+  details .body p { margin: 0 0 8px; }
+  details .body strong { color: var(--ink); font-weight: 600; }
+  details .body ul { padding-left: 20px; margin: 0 0 8px; }
+  .tablewrap { overflow: auto; max-height: 320px; border: 1px solid var(--rule); border-radius: 6px; margin-top: 8px; }
+  table { border-collapse: collapse; font-size: 13px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; min-width: 320px; }
+  th, td { text-align: right; padding: 4px 12px; border-bottom: 1px solid var(--rule); }
+  th { position: sticky; top: 0; background: var(--panel-2); color: var(--ink-2); font-weight: 500; }
+  .tablebar { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-3); flex-wrap: wrap; }
+  kbd { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; border: 1px solid var(--rule-2); border-radius: 3px; padding: 0 4px; background: var(--panel-2); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>SIR on Networks</h1>
+    <p>Susceptible, infectious, removed contagion on four network families. Set up a network, then run: infectious agents pass the infection to susceptible neighbors, and are removed after a fixed infectious period.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="controls" aria-label="Controls">
+      <div class="btnrow">
+        <button id="setupBtn" type="button">Setup</button>
+        <button id="goBtn" type="button" class="primary" aria-pressed="false" disabled>Go</button>
+        <button id="stepBtn" type="button" disabled>Step</button>
+      </div>
+      <div id="status" class="status" aria-live="polite">Press Setup to build the network.</div>
+
+      <fieldset>
+        <legend>Network (applies on Setup)</legend>
+        <div class="param">
+          <label for="network">Network</label>
+          <select id="network">
+            <option value="random">Random</option>
+            <option value="smallworld">Small world</option>
+            <option value="complete">Complete</option>
+            <option value="caveman" selected>Connected caveman</option>
+          </select>
+          <div class="hint" id="networkHint"></div>
+        </div>
+        <div class="param" data-param="n">
+          <label for="n">Population size</label>
+          <input type="number" id="n" min="2" max="300" step="1" value="100">
+          <input type="range" id="n_r" min="2" max="300" step="1" value="100" aria-label="Population size slider">
+        </div>
+        <div class="param" data-param="netprob">
+          <label for="netprob" id="netprobLabel">Network probability</label>
+          <input type="number" id="netprob" min="0" max="1" step="0.001" value="0.01">
+          <input type="range" id="netprob_r" min="0" max="1" step="0.001" value="0.01" aria-label="Network probability slider">
+          <div class="hint" id="netprobHint"></div>
+        </div>
+        <div class="param" data-param="nbr">
+          <label for="nbr" id="nbrLabel">Neighborhood size</label>
+          <input type="number" id="nbr" min="1" max="50" step="1" value="16">
+          <input type="range" id="nbr_r" min="1" max="50" step="1" value="16" aria-label="Neighborhood size slider">
+          <div class="hint" id="nbrHint"></div>
+        </div>
+        <div class="param" data-param="init">
+          <label for="init">Initially infectious</label>
+          <input type="number" id="init" min="0" max="50" step="1" value="0">
+          <input type="range" id="init_r" min="0" max="50" step="1" value="0" aria-label="Initially infectious slider">
+          <div class="hint">Agents infected at setup. The original model starts with none and relies on spontaneous infection. Clicking a susceptible node also infects it.</div>
+        </div>
+        <div class="param">
+          <label for="seed">Seed</label>
+          <input type="text" id="seed" inputmode="numeric" placeholder="random" aria-describedby="seedHint">
+          <div class="hint" id="seedHint">Leave blank for a fresh random seed each setup.</div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Epidemic (applies live)</legend>
+        <div class="param" data-param="ptrans">
+          <label for="ptrans">Transmission probability</label>
+          <input type="number" id="ptrans" min="0" max="1" step="0.005" value="0.03">
+          <input type="range" id="ptrans_r" min="0" max="1" step="0.005" value="0.03" aria-label="Transmission probability slider">
+          <div class="hint">Per infectious neighbor, per tick.</div>
+        </div>
+        <div class="param" data-param="spont">
+          <label for="spont">Spontaneous infection</label>
+          <input type="number" id="spont" min="0" max="1" step="0.005" value="0.01">
+          <input type="range" id="spont_r" min="0" max="1" step="0.005" value="0.01" aria-label="Spontaneous infection slider">
+          <div class="hint">Probability per tick that one random susceptible agent becomes infectious.</div>
+        </div>
+        <div class="param toggle">
+          <label for="perp">Perpetually infectious</label>
+          <input type="checkbox" id="perp">
+        </div>
+        <div class="param" data-param="periods" id="periodsRow">
+          <label for="periods">Periods infectious</label>
+          <input type="number" id="periods" min="1" max="100" step="1" value="10">
+          <input type="range" id="periods_r" min="1" max="100" step="1" value="10" aria-label="Periods infectious slider">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Run</legend>
+        <div class="param" data-param="speed">
+          <label for="speed">Ticks per second</label>
+          <input type="number" id="speed" min="1" max="60" step="1" value="10">
+          <input type="range" id="speed_r" min="1" max="60" step="1" value="10" aria-label="Ticks per second slider">
+        </div>
+        <div class="param toggle">
+          <label for="maxspeed">As fast as possible</label>
+          <input type="checkbox" id="maxspeed">
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--ink-3);margin-top:6px">Keys: <kbd>space</kbd> go/pause, <kbd>s</kbd> step, <kbd>r</kbd> setup.</div>
+      </fieldset>
+    </aside>
+
+    <main>
+      <div class="tiles" id="tiles">
+        <div class="tile"><div class="label">Tick</div><div class="value" id="tTick">0</div></div>
+        <div class="tile"><div class="label"><span class="swatch" style="background:var(--s)"></span>Susceptible</div><div class="value" id="tS">0</div></div>
+        <div class="tile"><div class="label"><span class="swatch" style="background:var(--i)"></span>Infectious</div><div class="value" id="tI">0</div></div>
+        <div class="tile"><div class="label"><span class="swatch" style="background:var(--r)"></span>Removed</div><div class="value" id="tR">0</div></div>
+        <div class="tile"><div class="label">Peak infectious</div><div class="value" id="tPeak">0<small>at tick 0</small></div></div>
+        <div class="tile"><div class="label">Ever infected</div><div class="value" id="tEver">0<small>of 0</small></div></div>
+      </div>
+
+      <div class="views">
+        <div class="card">
+          <h2>Network <span class="sub" id="netSub">no network yet</span></h2>
+          <div class="canvas-box net-box">
+            <canvas id="net" aria-label="Network view: nodes colored by state"></canvas>
+            <div id="netTip" class="tip" hidden></div>
+          </div>
+          <div class="legend">
+            <span><span class="dot" style="background:var(--s)"></span>Susceptible</span>
+            <span><span class="dot" style="background:var(--i)"></span>Infectious</span>
+            <span><span class="dot" style="background:var(--r)"></span>Removed</span>
+          </div>
+          <div class="netstats" id="netstats">
+            <div>Links<span id="stLinks">–</span></div>
+            <div>Mean degree<span id="stDeg">–</span></div>
+            <div>Clustering coefficient<span id="stClust">–</span></div>
+            <div>Mean path length<span id="stPath">–</span></div>
+            <div>Components<span id="stComp">–</span></div>
+            <div>Seed used<span id="stSeed">–</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Epidemic <span class="sub">agents by state, per tick</span></h2>
+          <div class="canvas-box plot-box">
+            <canvas id="plot" aria-label="Line chart of susceptible, infectious and removed counts over ticks"></canvas>
+            <div id="plotTip" class="tip" hidden></div>
+          </div>
+          <div class="legend">
+            <span><span class="key" style="border-color:var(--s)"></span>Susceptible</span>
+            <span><span class="key" style="border-color:var(--i)"></span>Infectious</span>
+            <span><span class="key" style="border-color:var(--r)"></span>Removed</span>
+          </div>
+          <details style="margin-top:10px">
+            <summary>Data table</summary>
+            <div class="tablebar">
+              <button type="button" id="copyCsv">Copy as CSV</button>
+              <span id="copyMsg"></span>
+            </div>
+            <div class="tablewrap">
+              <table id="tsTable">
+                <thead><tr><th>tick</th><th>susceptible</th><th>infectious</th><th>removed</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <details>
+        <summary>How the model works</summary>
+        <div class="body">
+          <p><strong>Agents and states.</strong> Each of the <em>n</em> agents is susceptible, infectious or removed. Every agent starts susceptible. Infection enters through the initially infectious agents (none by default), through spontaneous infection, or by clicking a node.</p>
+          <p><strong>One tick.</strong> The agents that are infectious at the start of the tick act in random order. Each first advances its infectious clock. If the clock now exceeds <em>periods infectious</em> and <em>perpetually infectious</em> is off, the agent is removed and does nothing else this tick. Otherwise it infects each susceptible neighbor independently with the <em>transmission probability</em>. An agent therefore transmits for exactly <em>periods infectious</em> ticks and is removed on the tick after. Agents infected during a tick do not transmit until the next one. Then, with probability <em>spontaneous infection</em>, one uniformly random susceptible agent becomes infectious. The run stops when no susceptible agent remains, or when nothing can change any more (no infectious agents and spontaneous infection at 0).</p>
+          <p><strong>Networks.</strong></p>
+          <ul>
+            <li><strong>Random.</strong> Erdős–Rényi: each pair of agents is linked with probability <em>network probability</em>.</li>
+            <li><strong>Small world.</strong> Watts–Strogatz: a ring where each agent is linked to its <em>neighborhood size</em> nearest agents on each side, then each link is rewired to a random agent with probability <em>network probability</em>. Neighborhood size must be at most (n − 1)/2.</li>
+            <li><strong>Complete.</strong> Every pair of agents is linked.</li>
+            <li><strong>Connected caveman.</strong> Agents are split into cliques of <em>neighborhood size</em> (the last clique takes the remainder), and one member of each clique is linked to one member of the next, in a ring.</li>
+          </ul>
+          <p><strong>Network statistics</strong> follow the NetLogo <code>nw</code> extension: the clustering coefficient is the mean local clustering over agents (an agent with fewer than two neighbors counts 0), and the mean path length is over all pairs when the network is connected; when it is not, it is reported for the largest component.</p>
+          <p><strong>Provenance.</strong> A faithful port of the NetLogo model <code>SIR-1.nlogo</code>. Additions: initially infectious agents, click-to-infect, an explicit seed, a speed control, network statistics, and the data table. Defaults match the original interface.</p>
+        </div>
+      </details>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- RNG (mulberry32; seedable) ----------
+  function makeRng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    setup: $('setupBtn'), go: $('goBtn'), step: $('stepBtn'), status: $('status'),
+    network: $('network'), networkHint: $('networkHint'),
+    netprobLabel: $('netprobLabel'), netprobHint: $('netprobHint'),
+    nbrLabel: $('nbrLabel'), nbrHint: $('nbrHint'), perp: $('perp'), periodsRow: $('periodsRow'),
+    seed: $('seed'), maxspeed: $('maxspeed'),
+    net: $('net'), netTip: $('netTip'), plot: $('plot'), plotTip: $('plotTip'),
+    netSub: $('netSub'), tsBody: document.querySelector('#tsTable tbody'), copyCsv: $('copyCsv'), copyMsg: $('copyMsg'),
+  };
+  const params = {};
+  for (const row of document.querySelectorAll('.param[data-param]')) {
+    const key = row.dataset.param;
+    const num = $(key), range = $(key + '_r');
+    params[key] = num;
+    const sync = (from, to) => { to.value = from.value; };
+    range.addEventListener('input', () => { sync(range, num); onParam(key); });
+    num.addEventListener('input', () => { sync(num, range); onParam(key); });
+    num.addEventListener('change', () => {
+      let v = Number(num.value);
+      if (!Number.isFinite(v)) v = Number(range.value);
+      v = Math.min(Number(num.max), Math.max(Number(num.min), v));
+      num.value = v; range.value = v; onParam(key);
+    });
+  }
+  const P = (key) => Number(params[key].value);
+
+  const NET_TEXT = {
+    random:     { hint: 'Erdős–Rényi: each pair of agents is linked with the network probability.', prob: 'Link probability', probHint: 'Probability that any two agents are linked.', nbr: null },
+    smallworld: { hint: 'Watts–Strogatz ring lattice with random rewiring.', prob: 'Rewiring probability', probHint: 'Probability that each lattice link is rewired to a random agent.', nbr: 'Neighbors on each side of the ring.' },
+    complete:   { hint: 'Every pair of agents is linked.', prob: null, nbr: null },
+    caveman:    { hint: 'Cliques of neighborhood size, one member of each linked to the next clique in a ring.', prob: null, nbr: 'Size of each clique.' },
+  };
+  function refreshNetworkUI() {
+    const t = NET_TEXT[el.network.value];
+    el.networkHint.textContent = t.hint;
+    const probRow = params.netprob.closest('.param'), nbrRow = params.nbr.closest('.param');
+    probRow.classList.toggle('disabled', !t.prob);
+    el.netprobLabel.textContent = t.prob || 'Network probability';
+    el.netprobHint.textContent = t.prob ? t.probHint : 'Not used by this network.';
+    nbrRow.classList.toggle('disabled', !t.nbr);
+    el.nbrLabel.textContent = 'Neighborhood size';
+    el.nbrHint.textContent = t.nbr || 'Not used by this network.';
+  }
+  el.network.addEventListener('change', refreshNetworkUI);
+  refreshNetworkUI();
+  function refreshPeriodsUI() { el.periodsRow.classList.toggle('disabled', el.perp.checked); }
+  el.perp.addEventListener('change', refreshPeriodsUI);
+  refreshPeriodsUI();
+  function onParam(key) {
+    if (key === 'n') { const n = P('n'); params.init.max = n; $('init_r').max = n; if (P('init') > n) { params.init.value = n; $('init_r').value = n; } }
+  }
+
+  // ---------- Model ----------
+  const S = 0, I = 1, R = 2;
+  let M = null; // model state
+  let gen = 0;   // setup counter
+  let running = false, acc = 0, lastT = 0, rafId = 0;
+
+  function buildNetwork(kind, n, p, k, rng) {
+    const adj = Array.from({ length: n }, () => new Set());
+    const link = (a, b) => { if (a !== b) { adj[a].add(b); adj[b].add(a); } };
+    let layout = null, note = '';
+    if (kind === 'random') {
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (rng() < p) link(i, j);
+    } else if (kind === 'smallworld') {
+      for (let i = 0; i < n; i++) for (let j = 1; j <= k; j++) link(i, (i + j) % n);
+      // rewire each lattice edge (i, i+j) with probability p, as in Watts & Strogatz
+      for (let j = 1; j <= k; j++) for (let i = 0; i < n; i++) {
+        const b = (i + j) % n;
+        if (rng() < p && adj[i].has(b) && adj[i].size < n - 1) {
+          let c;
+          do { c = Math.floor(rng() * n); } while (c === i || adj[i].has(c));
+          adj[i].delete(b); adj[b].delete(i); link(i, c);
+        }
+      }
+      layout = circleLayout(n, 0.92);
+    } else if (kind === 'complete') {
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) link(i, j);
+      layout = circleLayout(n, 0.92);
+    } else if (kind === 'caveman') {
+      // groups of size k while more than k agents remain; the remainder forms the last group
+      const ids = shuffled([...Array(n).keys()], rng);
+      const groups = [];
+      let start = 0;
+      while (n - start > k) { groups.push(ids.slice(start, start + k)); start += k; }
+      groups.push(ids.slice(start));
+      const leaders = [];
+      for (const g of groups) {
+        for (let a = 0; a < g.length; a++) for (let b = a + 1; b < g.length; b++) link(g[a], g[b]);
+        leaders.push(g[Math.floor(rng() * g.length)]);
+      }
+      if (leaders.length > 1) for (let j = 0; j < leaders.length; j++) link(leaders[j], leaders[(j + 1) % leaders.length]);
+      layout = cavemanLayout(n, groups, leaders);
+      note = `${groups.length} clique${groups.length === 1 ? '' : 's'}`;
+    }
+    const edges = [];
+    for (let i = 0; i < n; i++) for (const j of adj[i]) if (j > i) edges.push([i, j]);
+    const nb = adj.map((s) => Int32Array.from(s));
+    if (!layout) layout = forceLayout(n, edges, rng);
+    return { nb, edges, pos: layout, note };
+  }
+
+  function shuffled(arr, rng) {
+    for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr;
+  }
+  function circleLayout(n, rad) {
+    const pos = new Float64Array(2 * n);
+    for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + 2 * Math.PI * i / n; pos[2 * i] = rad * Math.cos(a); pos[2 * i + 1] = rad * Math.sin(a); }
+    return pos;
+  }
+  function cavemanLayout(n, groups, leaders) {
+    const pos = new Float64Array(2 * n);
+    const L = groups.length;
+    let rCave = L === 1 ? 0.85 : 0.3, Rbig = 0;
+    if (L > 1) {
+      Rbig = 0.95 - rCave;
+      const spacing = 2 * Rbig * Math.sin(Math.PI / L);
+      if (spacing < 2.4 * rCave) { rCave = spacing / 2.4; Rbig = 0.95 - rCave; }
+    }
+    groups.forEach((g, gi) => {
+      const ca = -Math.PI / 2 + 2 * Math.PI * gi / L;
+      const cx = Rbig * Math.cos(ca), cy = Rbig * Math.sin(ca);
+      // leader faces the ring direction so inter-clique links stay readable
+      const lead = leaders[gi];
+      const ordered = [lead, ...g.filter((x) => x !== lead)];
+      ordered.forEach((id, mi) => {
+        const a = ca + Math.PI + 2 * Math.PI * mi / ordered.length;
+        const rr = ordered.length === 1 ? 0 : rCave;
+        pos[2 * id] = cx + rr * Math.cos(a); pos[2 * id + 1] = cy + rr * Math.sin(a);
+      });
+    });
+    return pos;
+  }
+  function forceLayout(n, edges, rng, iters = 220) {
+    const pos = new Float64Array(2 * n), disp = new Float64Array(2 * n);
+    for (let i = 0; i < 2 * n; i++) pos[i] = rng() * 2 - 1;
+    const k = Math.sqrt(4 / Math.max(n, 1)) * 0.8;
+    for (let it = 0; it < iters; it++) {
+      const temp = 0.6 * (1 - it / iters) + 0.005;
+      disp.fill(0);
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        let dx = pos[2 * i] - pos[2 * j], dy = pos[2 * i + 1] - pos[2 * j + 1];
+        let d = Math.hypot(dx, dy); if (d < 1e-3) { dx = (rng() - 0.5) * 1e-2; dy = (rng() - 0.5) * 1e-2; d = Math.hypot(dx, dy); }
+        const f = (k * k) / d / d;
+        disp[2 * i] += dx * f; disp[2 * i + 1] += dy * f; disp[2 * j] -= dx * f; disp[2 * j + 1] -= dy * f;
+      }
+      for (const [a, b] of edges) {
+        const dx = pos[2 * a] - pos[2 * b], dy = pos[2 * a + 1] - pos[2 * b + 1];
+        const d = Math.hypot(dx, dy) + 1e-9, f = d / k;
+        disp[2 * a] -= dx * f; disp[2 * a + 1] -= dy * f; disp[2 * b] += dx * f; disp[2 * b + 1] += dy * f;
+      }
+      for (let i = 0; i < n; i++) {
+        const dx = disp[2 * i], dy = disp[2 * i + 1], d = Math.hypot(dx, dy) || 1;
+        const m = Math.min(d, temp) / d;
+        pos[2 * i] = Math.max(-1, Math.min(1, pos[2 * i] + dx * m));
+        pos[2 * i + 1] = Math.max(-1, Math.min(1, pos[2 * i + 1] + dy * m));
+      }
+    }
+    // fit to [-0.95, 0.95]
+    let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+    for (let i = 0; i < n; i++) { minx = Math.min(minx, pos[2 * i]); maxx = Math.max(maxx, pos[2 * i]); miny = Math.min(miny, pos[2 * i + 1]); maxy = Math.max(maxy, pos[2 * i + 1]); }
+    const span = Math.max(maxx - minx, maxy - miny, 1e-6), sc = 1.9 / span;
+    for (let i = 0; i < n; i++) { pos[2 * i] = (pos[2 * i] - (minx + maxx) / 2) * sc; pos[2 * i + 1] = (pos[2 * i + 1] - (miny + maxy) / 2) * sc; }
+    return pos;
+  }
+
+  function networkStats(nb) {
+    const n = nb.length;
+    let links = 0, clustSum = 0;
+    for (let i = 0; i < n; i++) {
+      const d = nb[i].length; links += d;
+      if (d < 2) continue;
+      const set = new Set(nb[i]); let tri = 0;
+      for (let a = 0; a < d; a++) { const u = nb[i][a]; for (const w of nb[u]) if (w > u && set.has(w)) tri++; }
+      clustSum += tri / (d * (d - 1) / 2);
+    }
+    links /= 2;
+    // components and path lengths by BFS
+    const comp = new Int32Array(n).fill(-1); let ncomp = 0; const sizes = [];
+    const queue = new Int32Array(n);
+    for (let s = 0; s < n; s++) {
+      if (comp[s] >= 0) continue;
+      let h = 0, t = 0; queue[t++] = s; comp[s] = ncomp; let size = 0;
+      while (h < t) { const u = queue[h++]; size++; for (const v of nb[u]) if (comp[v] < 0) { comp[v] = ncomp; queue[t++] = v; } }
+      sizes.push(size); ncomp++;
+    }
+    let big = 0; for (let c = 1; c < ncomp; c++) if (sizes[c] > sizes[big]) big = c;
+    const dist = new Int32Array(n); let pathSum = 0, pairs = 0;
+    for (let s = 0; s < n; s++) {
+      if (comp[s] !== big) continue;
+      dist.fill(-1); let h = 0, t = 0; queue[t++] = s; dist[s] = 0;
+      while (h < t) { const u = queue[h++]; for (const v of nb[u]) if (dist[v] < 0) { dist[v] = dist[u] + 1; queue[t++] = v; pathSum += dist[v]; pairs++; } }
+    }
+    return { links, meanDeg: n ? 2 * links / n : 0, clust: n ? clustSum / n : 0, ncomp, bigSize: sizes[big] || 0, pathLen: pairs ? pathSum / pairs : NaN };
+  }
+
+  function setup() {
+    stopRun();
+    const kind = el.network.value, n = P('n'), p = P('netprob');
+    let k = P('nbr');
+    if (kind === 'smallworld' && k > (n - 1) / 2) {
+      setStatus(`Neighborhood size is too large: at most ${Math.floor((n - 1) / 2)} for ${n} agents.`, true);
+      return;
+    }
+    let seedText = el.seed.value.trim();
+    let seed = seedText === '' ? Math.floor(Math.random() * 4294967296) : (Number(seedText) >>> 0);
+    if (!Number.isFinite(Number(seedText)) && seedText !== '') { seed = hashString(seedText); }
+    const rng = makeRng(seed);
+    const net = buildNetwork(kind, n, p, k, rng);
+    M = {
+      n, nb: net.nb, edges: net.edges, pos: net.pos, rng, seed,
+      status: new Uint8Array(n), tInf: new Int32Array(n), tick: 0,
+      hist: { S: [], I: [], R: [] }, peak: 0, peakTick: 0, stopped: false,
+      stats: networkStats(net.nb), note: net.note, gen: ++gen,
+    };
+    const init = Math.min(P('init'), n);
+    const order = shuffled([...Array(n).keys()], rng);
+    for (let i = 0; i < init; i++) M.status[order[i]] = I;
+    record();
+    $('stSeed').textContent = String(seed);
+    setStatus('Ready. Press Go or Step.');
+    renderAll();
+  }
+  function hashString(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+  function counts() {
+    let s = 0, i = 0, r = 0;
+    for (let a = 0; a < M.n; a++) { const v = M.status[a]; if (v === S) s++; else if (v === I) i++; else r++; }
+    return { s, i, r };
+  }
+  function record() {
+    const c = counts();
+    M.hist.S.push(c.s); M.hist.I.push(c.i); M.hist.R.push(c.r);
+    if (c.i > M.peak) { M.peak = c.i; M.peakTick = M.tick; }
+    return c;
+  }
+
+  // One tick, ported line by line from the NetLogo `go` procedure.
+  function step() {
+    if (!M || M.stopped) return false;
+    const c0 = counts();
+    if (c0.s === 0) { M.stopped = true; setStatus(`Stopped at tick ${M.tick}: no susceptible agents remain.`); return false; }
+    const pT = P('ptrans'), periods = P('periods'), perpetual = el.perp.checked, spont = P('spont');
+    if (c0.i === 0 && spont === 0) { M.stopped = true; setStatus(`Stopped at tick ${M.tick}: no infectious agents and spontaneous infection is 0.`); return false; }
+    const { rng, status, tInf, nb } = M;
+    const inf = [];
+    for (let a = 0; a < M.n; a++) if (status[a] === I) inf.push(a);
+    shuffled(inf, rng);
+    for (const a of inf) {
+      tInf[a] += 1;
+      if (tInf[a] > periods && !perpetual) {
+        status[a] = R;
+      } else {
+        for (const b of nb[a]) if (status[b] === S && rng() < pT) { status[b] = I; tInf[b] = 0; }
+      }
+    }
+    if (rng() < spont) {
+      const sus = [];
+      for (let a = 0; a < M.n; a++) if (status[a] === S) sus.push(a);
+      if (sus.length) { const a = sus[Math.floor(rng() * sus.length)]; status[a] = I; tInf[a] = 0; }
+    }
+    M.tick += 1;
+    record();
+    return true;
+  }
+
+  // ---------- Run loop ----------
+  function startRun() {
+    if (!M || M.stopped) return;
+    running = true; el.go.setAttribute('aria-pressed', 'true'); el.go.textContent = 'Pause';
+    setStatus('Running.'); lastT = performance.now(); acc = 0;
+    rafId = requestAnimationFrame(frame);
+  }
+  function stopRun(msg) {
+    if (running) { running = false; cancelAnimationFrame(rafId); if (msg !== false && M && !M.stopped) setStatus('Paused.'); }
+    el.go.setAttribute('aria-pressed', 'false'); el.go.textContent = 'Go';
+  }
+  function frame(now) {
+    if (!running) return;
+    const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
+    let did = false;
+    if (el.maxspeed.checked) {
+      const budget = performance.now() + 12;
+      while (performance.now() < budget) { if (!step()) break; did = true; }
+    } else {
+      acc += dt * P('speed');
+      while (acc >= 1) { acc -= 1; if (!step()) break; did = true; }
+    }
+    if (did) renderAll();
+    if (M.stopped) { stopRun(false); return; }
+    rafId = requestAnimationFrame(frame);
+  }
+  el.setup.addEventListener('click', setup);
+  el.go.addEventListener('click', () => { if (running) stopRun(); else startRun(); });
+  el.step.addEventListener('click', () => { stopRun(); if (step()) { renderAll(); setStatus(`Stepped to tick ${M.tick}.`); } });
+  document.addEventListener('keydown', (e) => {
+    const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
+    if (e.key === ' ') { e.preventDefault(); if (M) el.go.click(); }
+    else if (e.key === 's' || e.key === 'S') { if (M) el.step.click(); }
+    else if (e.key === 'r' || e.key === 'R') { setup(); }
+  });
+  function setStatus(msg, warn) { el.status.textContent = msg; el.status.classList.toggle('warn', !!warn); syncButtons(); }
+  function syncButtons() { const off = !M || M.stopped; el.go.disabled = off; el.step.disabled = off; }
+
+  // ---------- Rendering ----------
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  function sizeCanvas(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+  const netGeom = { cx: 0, cy: 0, sc: 1, r: 4 };
+  function renderNet() {
+    const { ctx, w, h } = sizeCanvas(el.net);
+    ctx.clearRect(0, 0, w, h);
+    if (!M) { ctx.fillStyle = css('--ink-3'); ctx.font = '14px "IBM Plex Sans", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Press Setup to build the network', w / 2, h / 2); return; }
+    const pad = 16, sc = (Math.min(w, h) - 2 * pad) / 2, cx = w / 2, cy = h / 2;
+    const r = Math.max(2.5, Math.min(7, 42 / Math.sqrt(M.n)));
+    Object.assign(netGeom, { cx, cy, sc, r });
+    const X = (i) => cx + M.pos[2 * i] * sc, Y = (i) => cy + M.pos[2 * i + 1] * sc;
+    ctx.lineWidth = M.edges.length > 5000 ? 0.5 : 1; ctx.strokeStyle = css('--edge');
+    ctx.beginPath();
+    for (const [a, b] of M.edges) { ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(b), Y(b)); }
+    ctx.stroke();
+    const cols = [css('--s'), css('--i'), css('--r')], ring = css('--panel');
+    for (let st = 0; st < 3; st++) {
+      ctx.fillStyle = cols[st]; ctx.strokeStyle = ring; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < M.n; i++) if (M.status[i] === st) { ctx.moveTo(X(i) + r, Y(i)); ctx.arc(X(i), Y(i), r, 0, 2 * Math.PI); }
+      ctx.fill(); ctx.stroke();
+    }
+    if (hoverNode >= 0 && hoverNode < M.n) { ctx.strokeStyle = css('--ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(hoverNode), Y(hoverNode), r + 3, 0, 2 * Math.PI); ctx.stroke(); }
+  }
+  let hoverNode = -1;
+  function nodeAt(px, py) {
+    if (!M) return -1;
+    let best = -1, bd = Math.max(12, netGeom.r + 6) ** 2;
+    for (let i = 0; i < M.n; i++) {
+      const dx = netGeom.cx + M.pos[2 * i] * netGeom.sc - px, dy = netGeom.cy + M.pos[2 * i + 1] * netGeom.sc - py, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  const STATE_NAME = ['Susceptible', 'Infectious', 'Removed'];
+  el.net.addEventListener('pointermove', (e) => {
+    const rect = el.net.getBoundingClientRect(); const i = nodeAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (i !== hoverNode) { hoverNode = i; renderNet(); }
+    if (i < 0) { el.netTip.hidden = true; el.net.style.cursor = ''; return; }
+    el.netTip.textContent = '';
+    const line = (label, val) => { const d = document.createElement('div'); const s = document.createElement('strong'); s.textContent = val; d.append(s, ' ' + label); el.netTip.appendChild(d); };
+    line('agent ' + i, STATE_NAME[M.status[i]]);
+    line('neighbors', String(M.nb[i].length));
+    if (M.status[i] === I) line('ticks infectious', String(M.tInf[i]));
+    if (M.status[i] === S) { const d = document.createElement('div'); d.textContent = 'click to infect'; el.netTip.appendChild(d); }
+    el.netTip.hidden = false;
+    const x = e.clientX - rect.left + 14, y = e.clientY - rect.top + 14;
+    el.netTip.style.left = Math.min(x, rect.width - el.netTip.offsetWidth - 4) + 'px';
+    el.netTip.style.top = Math.min(y, rect.height - el.netTip.offsetHeight - 4) + 'px';
+    el.net.style.cursor = M.status[i] === S ? 'pointer' : '';
+  });
+  el.net.addEventListener('pointerleave', () => { hoverNode = -1; el.netTip.hidden = true; if (M) renderNet(); });
+  el.net.addEventListener('click', (e) => {
+    const rect = el.net.getBoundingClientRect(); const i = nodeAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (i < 0 || M.status[i] !== S) return;
+    M.status[i] = I; M.tInf[i] = 0; M.stopped = false;
+    // rewrite the current tick's record so the plot reflects the manual infection
+    M.hist.S.pop(); M.hist.I.pop(); M.hist.R.pop(); record();
+    if (!running) setStatus(`Agent ${i} infected by hand at tick ${M.tick}.`); else syncButtons();
+    renderAll();
+  });
+
+  const plotGeom = { left: 44, right: 14, top: 12, bottom: 28, w: 0, h: 0, xmax: 1, ymax: 1 };
+  function renderPlot() {
+    const { ctx, w, h } = sizeCanvas(el.plot);
+    ctx.clearRect(0, 0, w, h);
+    const g = plotGeom; g.w = w; g.h = h;
+    const pw = w - g.left - g.right, ph = h - g.top - g.bottom;
+    const n = M ? M.n : 100, T = M ? M.hist.S.length - 1 : 0;
+    g.xmax = Math.max(50, Math.ceil(T / 50) * 50); g.ymax = Math.max(1, n);
+    const X = (t) => g.left + (t / g.xmax) * pw, Y = (v) => g.top + ph - (v / g.ymax) * ph;
+    ctx.font = '11px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.fillStyle = css('--ink-3'); ctx.strokeStyle = css('--rule'); ctx.lineWidth = 1;
+    const yTicks = niceTicks(0, g.ymax, 4);
+    for (const v of yTicks) { const y = Math.round(Y(v)) + 0.5; ctx.beginPath(); ctx.moveTo(g.left, y); ctx.lineTo(w - g.right, y); ctx.stroke(); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(String(v), g.left - 6, y); }
+    const xTicks = niceTicks(0, g.xmax, 6);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const t of xTicks) { const x = Math.round(X(t)) + 0.5; ctx.fillText(String(t), x, g.top + ph + 6); }
+    ctx.strokeStyle = css('--rule-2'); ctx.beginPath(); ctx.moveTo(g.left + 0.5, g.top); ctx.lineTo(g.left + 0.5, g.top + ph + 0.5); ctx.lineTo(w - g.right, g.top + ph + 0.5); ctx.stroke();
+    if (!M) return;
+    const series = [['S', css('--s')], ['R', css('--r')], ['I', css('--i')]];
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = 2;
+    for (const [key, col] of series) {
+      const arr = M.hist[key];
+      ctx.strokeStyle = col; ctx.beginPath();
+      for (let t = 0; t <= T; t++) { const x = X(t), y = Y(arr[t]); if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      ctx.stroke();
+      ctx.fillStyle = col; ctx.strokeStyle = css('--panel'); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(X(T), Y(arr[T]), 4, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); ctx.lineWidth = 2;
+    }
+    if (plotHoverT >= 0 && plotHoverT <= T) {
+      const x = Math.round(X(plotHoverT)) + 0.5;
+      ctx.strokeStyle = css('--ink-3'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, g.top); ctx.lineTo(x, g.top + ph); ctx.stroke();
+      for (const [key, col] of series) { ctx.fillStyle = col; ctx.strokeStyle = css('--panel'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(plotHoverT), Y(M.hist[key][plotHoverT]), 4.5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+    }
+  }
+  function niceTicks(lo, hi, count) {
+    const span = hi - lo, raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag; const stepN = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10; const stepV = stepN * mag;
+    const out = []; for (let v = Math.ceil(lo / stepV) * stepV; v <= hi + 1e-9; v += stepV) out.push(Math.round(v * 1e6) / 1e6);
+    return out;
+  }
+  let plotHoverT = -1;
+  el.plot.addEventListener('pointermove', (e) => {
+    if (!M) return;
+    const rect = el.plot.getBoundingClientRect(); const px = e.clientX - rect.left;
+    const g = plotGeom, pw = g.w - g.left - g.right, T = M.hist.S.length - 1;
+    let t = Math.round(((px - g.left) / pw) * g.xmax); t = Math.max(0, Math.min(T, t));
+    plotHoverT = t; renderPlot();
+    el.plotTip.textContent = '';
+    const head = document.createElement('div'); head.textContent = 'tick ' + t; el.plotTip.appendChild(head);
+    for (const [key, label, v] of [['S', 'susceptible', '--s'], ['I', 'infectious', '--i'], ['R', 'removed', '--r']]) {
+      const d = document.createElement('div'); const k = document.createElement('span'); k.className = 'key'; k.style.borderColor = css(v);
+      const s = document.createElement('strong'); s.textContent = String(M.hist[key][t]); d.append(k, s, ' ' + label); el.plotTip.appendChild(d);
+    }
+    el.plotTip.hidden = false;
+    const x = px + 14, y = e.clientY - rect.top + 14;
+    el.plotTip.style.left = Math.min(x, rect.width - el.plotTip.offsetWidth - 4) + 'px';
+    el.plotTip.style.top = Math.min(y, rect.height - el.plotTip.offsetHeight - 4) + 'px';
+  });
+  el.plot.addEventListener('pointerleave', () => { plotHoverT = -1; el.plotTip.hidden = true; if (M) renderPlot(); });
+
+  function renderTiles() {
+    const c = M ? counts() : { s: 0, i: 0, r: 0 };
+    $('tTick').textContent = M ? M.tick : 0;
+    $('tS').textContent = c.s; $('tI').textContent = c.i; $('tR').textContent = c.r;
+    $('tPeak').innerHTML = ''; $('tPeak').append(String(M ? M.peak : 0), small('at tick ' + (M ? M.peakTick : 0)));
+    $('tEver').innerHTML = ''; $('tEver').append(String(c.i + c.r), small('of ' + (M ? M.n : 0)));
+  }
+  function small(t) { const s = document.createElement('small'); s.textContent = t; return s; }
+  function renderStats() {
+    if (!M) return;
+    const st = M.stats;
+    el.netSub.textContent = `${M.n} agents, ${el.network.options[el.network.selectedIndex].text.toLowerCase()}${M.note ? ', ' + M.note : ''}`;
+    $('stLinks').textContent = String(st.links);
+    $('stDeg').textContent = st.meanDeg.toFixed(2);
+    $('stClust').textContent = st.clust.toFixed(3);
+    $('stPath').textContent = Number.isNaN(st.pathLen) ? '–' : st.pathLen.toFixed(2) + (st.ncomp > 1 ? ` (largest component, ${st.bigSize})` : '');
+    $('stComp').textContent = String(st.ncomp);
+  }
+  let tableRows = 0;
+  function renderTable(full) {
+    if (!M) return;
+    const T = M.hist.S.length;
+    if (full) { el.tsBody.textContent = ''; tableRows = 0; }
+    if (tableRows > T) { el.tsBody.textContent = ''; tableRows = 0; }
+    // the current tick's row may have been rewritten by a manual infection
+    if (tableRows === T && T > 0) { el.tsBody.lastElementChild.remove(); tableRows--; }
+    const frag = document.createDocumentFragment();
+    for (let t = tableRows; t < T; t++) {
+      const tr = document.createElement('tr');
+      for (const v of [t, M.hist.S[t], M.hist.I[t], M.hist.R[t]]) { const td = document.createElement('td'); td.textContent = String(v); tr.appendChild(td); }
+      frag.appendChild(tr);
+    }
+    el.tsBody.appendChild(frag); tableRows = T;
+  }
+  el.copyCsv.addEventListener('click', async () => {
+    if (!M) return;
+    const lines = ['tick,susceptible,infectious,removed'];
+    for (let t = 0; t < M.hist.S.length; t++) lines.push(`${t},${M.hist.S[t]},${M.hist.I[t]},${M.hist.R[t]}`);
+    try { await navigator.clipboard.writeText(lines.join('\n')); el.copyMsg.textContent = `Copied ${lines.length - 1} rows.`; }
+    catch { el.copyMsg.textContent = 'Clipboard blocked; select the table and copy instead.'; }
+    setTimeout(() => { el.copyMsg.textContent = ''; }, 3000);
+  });
+
+  let lastTableGen = -1;
+  function renderAll() {
+    renderNet(); renderPlot(); renderTiles(); renderStats();
+    renderTable(lastTableGen !== M.gen); lastTableGen = M.gen;
+  }
+  window.addEventListener('resize', () => { renderNet(); renderPlot(); });
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener('change', () => { renderNet(); renderPlot(); });
+  new MutationObserver(() => { renderNet(); renderPlot(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // First look: a built network with the default settings.
+  setup();
+})();
+</script>
+</body>
+</html>
