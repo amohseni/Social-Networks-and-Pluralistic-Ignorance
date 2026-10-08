@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homophilous Rewiring Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control rail on the left, two square views (network, attitude space) over two charts; one column on phones. */
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #1d2127; --muted: #5d6876; --rule: #dde2e8;
+  --accent: #3475BC; --accent2: #EE4000; --mid: #c3cad3; --c01: #c79a12; --c11: #7b3fa0;
+  --edge: #6b7685; --sans: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Roboto Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111418; --panel: #191d23; --fg: #e5e8ec; --muted: #9aa4b0; --rule: #2b3139;
+  --accent: #5b98dc; --accent2: #ff5a26; --mid: #59626e; --c01: #e0b43a; --c11: #a76ad0;
+  --edge: #8a95a3; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111418; --panel: #191d23; --fg: #e5e8ec; --muted: #9aa4b0; --rule: #2b3139;
+  --accent: #5b98dc; --accent2: #ff5a26; --mid: #59626e; --c01: #e0b43a; --c11: #a76ad0;
+  --edge: #8a95a3; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); padding-inline: 16px; padding-block: 18px 32px }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px }
+header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 78ch }
+.main { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr) } }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px }
+aside { display: grid; gap: 14px }
+.field { display: grid; gap: 4px }
+.field label, .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; display: flex; justify-content: space-between }
+.sym { font-style: italic; text-transform: none; letter-spacing: 0 }
+.field output { font-family: var(--mono); color: var(--fg); text-transform: none; letter-spacing: 0 }
+input[type=range] { width: 100%; accent-color: var(--accent) }
+select, input[type=number] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 6px; width: 100% }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden }
+.seg input { position: absolute; opacity: 0; pointer-events: none }
+.seg label { text-align: center; padding: 6px 0; cursor: pointer; font-size: 13px; color: var(--muted); text-transform: none; letter-spacing: 0; justify-content: center }
+.seg input:checked + label { background: var(--accent); color: #fff }
+.seg input:focus-visible + label { outline: 2px solid var(--accent2); outline-offset: -2px }
+.btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px }
+button { font: 500 13px var(--sans); padding: 8px 0; border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); color: var(--fg); cursor: pointer }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff }
+button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px }
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+.stat { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; min-width: 0 }
+.stat b { display: block; font: 500 18px var(--mono); font-variant-numeric: tabular-nums }
+.stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em }
+.views { display: grid; gap: 12px; min-width: 0 }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px }
+@media (max-width: 640px) { .row2 { grid-template-columns: minmax(0, 1fr) } }
+figure { margin: 0; min-width: 0 }
+figcaption { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap }
+figcaption strong { color: var(--fg); font-weight: 500 }
+canvas { display: block; width: 100%; max-width: 100%; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px }
+canvas.sq { aspect-ratio: 1 / 1 }
+canvas.wide { aspect-ratio: 2 / 1 }
+.key { display: inline-flex; align-items: center; gap: 5px; margin-right: 10px; white-space: nowrap }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block }
+details { color: var(--fg) }
+details summary { cursor: pointer; font-weight: 500 }
+details p, details li { max-width: 78ch; color: var(--fg) }
+details ul { padding-left: 20px }
+.note { font-size: 12px; color: var(--muted) }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Homophilous Rewiring Lab</h1>
+  <p>Agents start on a preferential-attachment network. Each holds one or two fixed attitudes in [0, 1]. Every sweep, each agent in random order cuts its tie to the neighbor farthest from it in attitude space and adds a tie to a uniformly random non-neighbor.</p>
+</header>
+
+<div class="main">
+<aside class="card">
+  <div class="field"><span class="lbl">Attitudes per agent</span>
+    <div class="seg" role="radiogroup" aria-label="Attitudes per agent">
+      <input type="radio" name="D" id="D1" value="1" checked><label for="D1">One</label>
+      <input type="radio" name="D" id="D2" value="2"><label for="D2">Two</label>
+    </div></div>
+  <div class="field"><label for="dist">Attitude distribution</label>
+    <select id="dist">
+      <option value="uniform">Uniform</option>
+      <option value="bimodal" selected>Bimodal (modes at 0.25, 0.75)</option>
+      <option value="normal">Unimodal (mean 0.5, sd 0.15)</option>
+    </select></div>
+  <div class="field" id="rhoField"><label for="rho">Correlation of attitudes <output id="rhoOut">0.00</output></label>
+    <input type="range" id="rho" min="0" max="1" step="0.05" value="0"></div>
+  <div class="field"><label for="N">Agents N <output id="NOut">200</output></label>
+    <input type="range" id="N" min="40" max="400" step="10" value="200"></div>
+  <div class="field"><label for="m">Ties per newcomer m <output id="mOut">3</output></label>
+    <input type="range" id="m" min="1" max="8" step="1" value="3"></div>
+  <div class="field"><label for="mu">Social influence <i class="sym">μ</i> <output id="muOut">0.00</output></label>
+    <input type="range" id="mu" min="0" max="0.2" step="0.01" value="0"></div>
+  <div class="field"><label for="speed">Sweeps per second <output id="speedOut">4</output></label>
+    <input type="range" id="speed" min="1" max="30" step="1" value="4"></div>
+  <div class="field"><label for="seed">Seed</label>
+    <input type="number" id="seed" value="7" min="1" step="1"></div>
+  <div class="field"><span class="lbl">Color nodes by</span>
+    <div class="seg" role="radiogroup" aria-label="Color nodes by">
+      <input type="radio" name="col" id="colA" value="att" checked><label for="colA">Attitude</label>
+      <input type="radio" name="col" id="colC" value="clu"><label for="colC">Cluster</label>
+    </div></div>
+  <div class="btns">
+    <button id="play" class="primary">Pause</button>
+    <button id="step">Step</button>
+    <button id="reset">Reset</button>
+  </div>
+  <p class="note">Changing attitudes, distribution, correlation, N, m or seed rebuilds the network. μ and speed act live.</p>
+</aside>
+
+<section class="views">
+  <div class="stats">
+    <div class="stat"><span>Sweep</span><b id="sT">0</b></div>
+    <div class="stat"><span>Assortativity <i class="sym">r</i></span><b id="sR">–</b></div>
+    <div class="stat"><span>Tie length</span><b id="sL">–</b></div>
+    <div class="stat"><span>Modularity <i class="sym">Q</i></span><b id="sQ">–</b></div>
+    <div class="stat"><span>Clusters ≥5</span><b id="sC">–</b></div>
+    <div class="stat"><span>Max degree</span><b id="sK">–</b></div>
+  </div>
+  <div class="row2">
+    <figure><figcaption><strong>Network</strong><span>faint orange = tie added this sweep</span></figcaption><canvas id="net" class="sq"></canvas></figure>
+    <figure><figcaption><strong>Attitude space</strong><span id="spaceNote">vertical position is jitter</span></figcaption><canvas id="space" class="sq"></canvas></figure>
+  </div>
+  <div class="row2">
+    <figure><figcaption><strong>Sorting over time</strong>
+      <span><span class="key"><i class="sw" style="background:var(--accent)"></i>r</span><span class="key"><i class="sw" style="background:var(--accent2)"></i>Q</span><span class="key"><i class="sw" style="background:var(--muted)"></i>tie length</span></span></figcaption>
+      <canvas id="ts" class="wide"></canvas></figure>
+    <figure><figcaption><strong>Degree distribution</strong>
+      <span><span class="key"><i class="sw" style="background:var(--accent)"></i>now</span><span class="key"><i class="sw" style="background:var(--muted)"></i>initial</span></span></figcaption>
+      <canvas id="deg" class="wide"></canvas></figure>
+  </div>
+  <details class="card">
+    <summary>Model and measures</summary>
+    <ul>
+      <li><b>Start.</b> Barabási–Albert graph: a clique of m+1 agents, then each newcomer ties to m agents chosen with probability proportional to degree. Mean degree is about 2m and stays fixed, since every sweep cuts N ties and adds N.</li>
+      <li><b>Rewiring.</b> Each sweep visits agents in random order. An agent cuts its tie to the farthest neighbor (Euclidean distance in attitude space; ties broken at random), then ties to a uniformly random agent other than itself, its neighbors and the one just cut. An agent left with no ties (because others cut it earlier in the sweep) skips its turn; letting it add a tie anyway would make the tie count grow without bound.</li>
+      <li><b>Influence μ.</b> Off by default. When on, after each sweep every agent moves a fraction μ toward its neighbors' mean attitude.</li>
+      <li><b>Established ties.</b> All measures ignore the ties added in the latest sweep. Those are random by construction (about N of them at any moment) and most are cut in the next sweep. Degree counts all ties.</li>
+      <li><b>Assortativity r.</b> Pearson correlation of attitudes across the two ends of each tie, averaged over attitudes. 0 means ties ignore attitude; 1 means perfect sorting.</li>
+      <li><b>Tie length.</b> Mean attitude distance across ties divided by the mean distance between random pairs. 1 means no homophily.</li>
+      <li><b>Clusters.</b> Connected components of durable ties (ties that have survived more than 3 sweeps) with at least 5 agents. Agents outside them are grey in cluster view.</li>
+      <li><b>Modularity Q.</b> Newman modularity of the cluster partition over established ties. Near 0 when everyone sits in one cluster; near 1 − 1/k for k equal, fully separated clusters.</li>
+    </ul>
+    <p><b>What to expect.</b> With fixed attitudes the rule sorts ties but moves no one, so the network comes to mirror the attitude distribution. Uniform or unimodal attitudes give one long chain (one attitude) or sheet (two attitudes): ties are short in attitude space, but there are no separate groups. Bimodal attitudes with one attitude give two clusters, one per mode, joined only by ties that last a sweep or two.</p>
+    <p>Two uncorrelated bimodal attitudes give four groups of agents but usually only one to three clusters. An agent cuts the tie that disagrees on both attitudes before one that disagrees on only one, so ties across a single divide survive and bridge groups. Raising the correlation toward 1 merges the four groups into two and the bridges disappear.</p>
+    <p>Preferential-attachment hubs dissolve within about 50 sweeps, since new ties go to uniformly random agents. A milder inequality replaces them: agents with typical attitudes (near the center of a mode) gather ties, while agents with extreme attitudes are often someone's farthest neighbor and end up with few or none. With μ &gt; 0 the random ties carry influence across groups, so attitudes converge to consensus.</p>
+  </details>
+</section>
+</div>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2;
+
+// ---------- randomness ----------
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rng = mulberry32(7);
+function randn(r = rng) { let u = 0; while (u === 0) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * r()); }
+function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
+  return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); }
+const Phi = z => 0.5 * (1 + erf(z / Math.SQRT2));
+const clamp01 = v => Math.min(1, Math.max(0, v));
+function shuffle(arr, r = rng) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+
+// ---------- parameters ----------
+const P = {};
+function readParams() {
+  P.D = +document.querySelector('input[name=D]:checked').value;
+  P.dist = $('dist').value; P.rho = +$('rho').value; P.N = +$('N').value; P.m = +$('m').value;
+  P.mu = +$('mu').value; P.speed = +$('speed').value; P.seed = Math.max(1, Math.floor(+$('seed').value || 1));
+  P.colorBy = document.querySelector('input[name=col]:checked').value;
+  $('rhoOut').textContent = P.rho.toFixed(2); $('NOut').textContent = P.N; $('mOut').textContent = P.m;
+  $('muOut').textContent = P.mu.toFixed(2); $('speedOut').textContent = P.speed;
+  $('rhoField').hidden = P.D === 1;
+  $('spaceNote').textContent = P.D === 1 ? 'vertical position is jitter' : 'attitude 1 across, attitude 2 up';
+}
+
+// ---------- state ----------
+let S;
+const key = (i, j) => i < j ? i * 100000 + j : j * 100000 + i;
+function addEdge(i, j) { S.adj[i].add(j); S.adj[j].add(i); S.born.set(key(i, j), S.t); }
+function removeEdge(i, j) { S.adj[i].delete(j); S.adj[j].delete(i); S.born.delete(key(i, j)); }
+function dist(i, j) {
+  const a = S.a, D = S.D;
+  if (D === 1) return Math.abs(a[i] - a[j]);
+  const dx = a[2 * i] - a[2 * j], dy = a[2 * i + 1] - a[2 * j + 1];
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function genAttitudes(N, D, kind, rho) {
+  const a = new Float64Array(N * D);
+  for (let i = 0; i < N; i++) {
+    const z1 = randn(), z2 = rho * z1 + Math.sqrt(1 - rho * rho) * randn();
+    const zs = [z1, z2];
+    for (let d = 0; d < D; d++) {
+      const z = zs[d]; let v;
+      if (kind === 'uniform') v = Phi(z);
+      else if (kind === 'normal') v = 0.5 + 0.15 * z;
+      else v = (Phi(z) < 0.5 ? 0.25 : 0.75) + 0.07 * randn();
+      a[i * D + d] = clamp01(v);
+    }
+  }
+  return a;
+}
+
+function reset() {
+  readParams();
+  rng = mulberry32(P.seed);
+  const N = P.N, D = P.D, m = P.m;
+  S = { N, D, t: 0, a: genAttitudes(N, D, P.dist, P.rho), adj: Array.from({ length: N }, () => new Set()), born: new Map(),
+    x: new Float64Array(N), y: new Float64Array(N), vx: new Float64Array(N), vy: new Float64Array(N),
+    jit: new Float64Array(N), comm: new Int32Array(N).fill(-1), hist: [], deg0: null, Q: 0, nC: 0, view: null };
+  // Barabási–Albert: clique of m+1, then degree-proportional attachment via the endpoint list.
+  const rep = [], m0 = Math.min(m + 1, N);
+  for (let i = 0; i < m0; i++) for (let j = 0; j < i; j++) { addEdge(i, j); rep.push(i, j); }
+  for (let v = m0; v < N; v++) {
+    const tg = new Set();
+    while (tg.size < Math.min(m, v)) tg.add(rep[Math.floor(rng() * rep.length)]);
+    for (const u of tg) { addEdge(v, u); rep.push(v, u); }
+  }
+  for (const k of S.born.keys()) S.born.set(k, -1);
+  for (let i = 0; i < N; i++) {
+    const r = 40 * Math.sqrt(N) * Math.sqrt(rng()), th = TAU * rng();
+    S.x[i] = r * Math.cos(th); S.y[i] = r * Math.sin(th); S.jit[i] = rng();
+  }
+  S.deg0 = S.adj.map(s => s.size);
+  measure();
+  updateStats();
+}
+
+// ---------- dynamics ----------
+function sweep() {
+  const { N, adj } = S;
+  const order = shuffle([...Array(N).keys()]);
+  for (const i of order) {
+    // An agent with no ties has none to move; it waits for others' random ties. This keeps the tie count fixed.
+    if (!adj[i].size) continue;
+    let far = -1;
+    {
+      let best = -1, ties = 0;
+      for (const j of adj[i]) {
+        const d = dist(i, j);
+        if (d > best + 1e-12) { best = d; far = j; ties = 1; }
+        else if (Math.abs(d - best) <= 1e-12) { ties++; if (rng() < 1 / ties) far = j; }
+      }
+      removeEdge(i, far);
+    }
+    const open = N - 1 - adj[i].size - (far >= 0 ? 1 : 0);
+    if (open > 0) {
+      let k, tries = 0;
+      do { k = Math.floor(rng() * N); tries++; } while ((k === i || k === far || adj[i].has(k)) && tries < 5000);
+      if (tries < 5000) addEdge(i, k);
+    }
+  }
+  if (P.mu > 0) {
+    const D = S.D, a = S.a, next = Float64Array.from(a);
+    for (let i = 0; i < N; i++) {
+      const deg = adj[i].size; if (!deg) continue;
+      for (let d = 0; d < D; d++) {
+        let s = 0; for (const j of adj[i]) s += a[j * D + d];
+        next[i * D + d] = a[i * D + d] + P.mu * (s / deg - a[i * D + d]);
+      }
+    }
+    S.a = next;
+  }
+  S.t++;
+}
+
+// ---------- measures ----------
+// Measures use established ties only: ties added in the latest sweep are random and mostly cut in the next one.
+const isFresh = (i, j) => S.t > 0 && S.born.get(key(i, j)) >= S.t - 1;
+function edges() { const E = []; for (let i = 0; i < S.N; i++) for (const j of S.adj[i]) if (i < j && !isFresh(i, j)) E.push(i, j); return E; }
+function adjOf(E) { const A = Array.from({ length: S.N }, () => []); for (let e = 0; e < E.length; e += 2) { A[E[e]].push(E[e + 1]); A[E[e + 1]].push(E[e]); } return A; }
+
+// Clusters: connected components of durable ties, those that have survived more than DUR sweeps.
+// Ties between groups are cut within a sweep or two, so durable ties trace the groups that hold together.
+const DUR = 3;
+function durableComponents() {
+  const N = S.N, lab = new Int32Array(N).fill(-1);
+  for (let s0 = 0, c = 0; s0 < N; s0++) {
+    if (lab[s0] >= 0) continue;
+    lab[s0] = c; const st = [s0];
+    while (st.length) {
+      const i = st.pop();
+      for (const j of S.adj[i]) { const b = S.born.get(key(i, j)); if (lab[j] < 0 && (b < 0 || S.t - b > DUR)) { lab[j] = c; st.push(j); } }
+    }
+    c++;
+  }
+  return lab;
+}
+function modularity(lab, E, A) {
+  const M = E.length / 2; if (!M) return 0;
+  const inner = new Map(), dsum = new Map();
+  for (let e = 0; e < E.length; e += 2) { const i = E[e], j = E[e + 1]; if (lab[i] === lab[j]) inner.set(lab[i], (inner.get(lab[i]) || 0) + 1); }
+  for (let i = 0; i < S.N; i++) dsum.set(lab[i], (dsum.get(lab[i]) || 0) + A[i].length);
+  let Q = 0; for (const [l, d] of dsum) Q += (inner.get(l) || 0) / M - (d / (2 * M)) ** 2;
+  return Q;
+}
+
+function measure() {
+  const E = edges(), A = adjOf(E), D = S.D, a = S.a, N = S.N;
+  let r = 0;
+  for (let d = 0; d < D; d++) {
+    let s = 0, s2 = 0, sxy = 0, n = 0;
+    for (let e = 0; e < E.length; e += 2) {
+      const x = a[E[e] * D + d], y = a[E[e + 1] * D + d];
+      s += x + y; s2 += x * x + y * y; sxy += 2 * x * y; n += 2;
+    }
+    const mu = s / n, v = s2 / n - mu * mu;
+    r += v > 1e-12 ? (sxy / n - mu * mu) / v : 0;
+  }
+  r /= D;
+  let el = 0; for (let e = 0; e < E.length; e += 2) el += dist(E[e], E[e + 1]);
+  el /= Math.max(1, E.length / 2);
+  let base = 0; const R = 2000;
+  for (let k = 0; k < R; k++) { const i = Math.floor(Math.random() * N); let j = Math.floor(Math.random() * (N - 1)); if (j >= i) j++; base += dist(i, j); }
+  base /= R;
+  const L = base > 1e-9 ? el / base : 0;
+
+  const bestLab = durableComponents(), bestQ = modularity(bestLab, E, A);
+  // Number clusters of ≥5 agents in order of mean attitude, so colors stay put between sweeps.
+  const groups = new Map();
+  for (let i = 0; i < N; i++) { const l = bestLab[i]; if (!groups.has(l)) groups.set(l, []); groups.get(l).push(i); }
+  const big = [...groups.values()].filter(g => g.length >= 5)
+    .map(g => ({ g, c: g.reduce((s, i) => s + a[i * D] + (D === 2 ? 0.001 * a[i * D + 1] : 0), 0) / g.length }))
+    .sort((p, q) => p.c - q.c);
+  S.comm.fill(-1); big.forEach((b, idx) => b.g.forEach(i => { S.comm[i] = idx; }));
+  S.Q = bestQ; S.nC = big.length;
+  let kmax = 0; for (let i = 0; i < N; i++) kmax = Math.max(kmax, S.adj[i].size);
+  S.r = r; S.L = L; S.kmax = kmax;
+  S.hist.push([S.t, r, bestQ, L]);
+  if (S.hist.length > 4000) S.hist = S.hist.filter((_, k) => k % 2 === 0);
+}
+function updateStats() {
+  $('sT').textContent = S.t; $('sR').textContent = S.r.toFixed(2); $('sL').textContent = S.L.toFixed(2);
+  $('sQ').textContent = S.Q.toFixed(2); $('sC').textContent = S.nC; $('sK').textContent = S.kmax;
+}
+
+// ---------- layout ----------
+function layoutStep() {
+  const { N, x, y, vx, vy, adj } = S;
+  const fx = new Float64Array(N), fy = new Float64Array(N), KR = 900, L0 = 26, KS = 0.03;
+  for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+    let dx = x[i] - x[j], dy = y[i] - y[j], d2 = dx * dx + dy * dy;
+    if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1; }
+    if (d2 > 90000) continue;
+    const f = KR / d2; fx[i] += dx * f; fy[i] += dy * f; fx[j] -= dx * f; fy[j] -= dy * f;
+  }
+  for (let i = 0; i < N; i++) for (const j of adj[i]) if (i < j) {
+    const dx = x[j] - x[i], dy = y[j] - y[i], d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const w = isFresh(i, j) ? 0.08 : 1;
+    const f = w * KS * (d - L0) / d;
+    fx[i] += dx * f; fy[i] += dy * f; fx[j] -= dx * f; fy[j] -= dy * f;
+  }
+  for (let i = 0; i < N; i++) {
+    fx[i] -= 0.006 * x[i]; fy[i] -= 0.006 * y[i];
+    vx[i] = (vx[i] + fx[i]) * 0.78; vy[i] = (vy[i] + fy[i]) * 0.78;
+    const sp = Math.hypot(vx[i], vy[i]); if (sp > 12) { vx[i] *= 12 / sp; vy[i] *= 12 / sp; }
+    x[i] += vx[i]; y[i] += vy[i];
+  }
+}
+
+// ---------- colors ----------
+let C = {};
+function hex(c) { c = c.trim(); if (c[0] === '#' && c.length === 4) c = '#' + [...c.slice(1)].map(h => h + h).join(''); const n = parseInt(c.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function readColors() {
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  C = { fg: g('--fg'), muted: g('--muted'), rule: g('--rule'), panel: g('--panel'), edge: g('--edge'),
+    accent: g('--accent'), accent2: g('--accent2'),
+    A: hex(g('--accent')), B: hex(g('--accent2')), M: hex(g('--mid')), C01: hex(g('--c01')), C11: hex(g('--c11')) };
+}
+const mix = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+const CLU = ['#3475BC', '#EE4000', '#2E9E6B', '#C79A12', '#8E44AD', '#D2527F', '#17A2B8', '#7F8C2D', '#A0522D', '#5D6D7E'];
+function nodeColor(i) {
+  if (P.colorBy === 'clu') return S.comm[i] < 0 ? C.muted : CLU[S.comm[i] % CLU.length];
+  const a = S.a, D = S.D;
+  if (D === 1) { const v = a[i]; return rgb(v < 0.5 ? mix(C.A, C.M, v * 2) : mix(C.M, C.B, (v - 0.5) * 2)); }
+  const u = a[2 * i], v = a[2 * i + 1];
+  return rgb(mix(mix(C.A, C.B, u), mix(C.C01, C.C11, u), v));
+}
+
+// ---------- drawing ----------
+function fit(cv) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return [ctx, w, h];
+}
+function drawEdges(ctx, px, py) {
+  const fresh = new Path2D(), old = new Path2D();
+  for (let i = 0; i < S.N; i++) for (const j of S.adj[i]) if (i < j) {
+    const p = isFresh(i, j) ? fresh : old;
+    p.moveTo(px(i), py(i)); p.lineTo(px(j), py(j));
+  }
+  ctx.lineWidth = 0.7; ctx.strokeStyle = C.edge; ctx.globalAlpha = 0.32; ctx.stroke(old);
+  ctx.strokeStyle = C.accent2; ctx.globalAlpha = 0.16; ctx.stroke(fresh); ctx.globalAlpha = 1;
+}
+function drawNodes(ctx, px, py, rad) {
+  for (let i = 0; i < S.N; i++) {
+    ctx.beginPath(); ctx.arc(px(i), py(i), rad(i), 0, TAU); ctx.fillStyle = nodeColor(i); ctx.fill();
+  }
+}
+function drawNet() {
+  const [ctx, w, h] = fit($('net'));
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < S.N; i++) { x0 = Math.min(x0, S.x[i]); x1 = Math.max(x1, S.x[i]); y0 = Math.min(y0, S.y[i]); y1 = Math.max(y1, S.y[i]); }
+  const target = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, s: (Math.min(w, h) - 24) / Math.max(x1 - x0, y1 - y0, 1) };
+  const v = S.view = S.view ? { cx: S.view.cx + 0.15 * (target.cx - S.view.cx), cy: S.view.cy + 0.15 * (target.cy - S.view.cy), s: S.view.s + 0.15 * (target.s - S.view.s) } : target;
+  const px = i => w / 2 + (S.x[i] - v.cx) * v.s, py = i => h / 2 + (S.y[i] - v.cy) * v.s;
+  drawEdges(ctx, px, py);
+  drawNodes(ctx, px, py, i => 2 + 0.55 * Math.sqrt(S.adj[i].size));
+}
+function drawSpace() {
+  const [ctx, w, h] = fit($('space'));
+  const ml = S.D === 2 ? 44 : 14, mr = 14, mt = 12, mb = 30, W = w - ml - mr, H = h - mt - mb;
+  ctx.strokeStyle = C.rule; ctx.lineWidth = 1; ctx.fillStyle = C.muted; ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+    const X = ml + t * W; ctx.beginPath(); ctx.moveTo(X, mt); ctx.lineTo(X, mt + H); ctx.stroke(); ctx.fillText(t, X, mt + H + 4);
+    if (S.D === 2) { const Y = mt + (1 - t) * H; ctx.beginPath(); ctx.moveTo(ml, Y); ctx.lineTo(ml + W, Y); ctx.stroke(); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(t, ml - 5, Y); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; }
+  }
+  ctx.fillText(S.D === 1 ? 'attitude' : 'attitude 1', ml + W / 2, mt + H + 17);
+  if (S.D === 2) { ctx.save(); ctx.translate(9, mt + H / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle'; ctx.fillText('attitude 2', 0, 0); ctx.restore(); }
+  const D = S.D, a = S.a;
+  const px = i => ml + a[i * D] * W, py = i => mt + (1 - (D === 2 ? a[i * D + 1] : 0.04 + 0.92 * S.jit[i])) * H;
+  drawEdges(ctx, px, py);
+  drawNodes(ctx, px, py, () => 2.6);
+}
+function drawTS() {
+  const [ctx, w, h] = fit($('ts'));
+  const ml = 30, mr = 10, mt = 10, mb = 24, W = w - ml - mr, H = h - mt - mb, hs = S.hist, T = Math.max(10, S.t);
+  ctx.font = '11px ' + getComputedStyle(document.body).fontFamily; ctx.fillStyle = C.muted; ctx.strokeStyle = C.rule; ctx.lineWidth = 1;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) { const Y = mt + (1 - t) * H; ctx.beginPath(); ctx.moveTo(ml, Y); ctx.lineTo(ml + W, Y); ctx.stroke(); ctx.fillText(t, ml - 5, Y); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const step = Math.pow(10, Math.floor(Math.log10(T))) * (T / Math.pow(10, Math.floor(Math.log10(T))) > 5 ? 2 : 1) / (T < 20 ? 2 : 1);
+  for (let t = 0; t <= T; t += step) ctx.fillText(Math.round(t), ml + t / T * W, mt + H + 5);
+  const line = (k, col, dash) => {
+    ctx.beginPath(); hs.forEach((p, n) => { const X = ml + p[0] / T * W, Y = mt + (1 - clamp01(p[k])) * H; n ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.strokeStyle = col; ctx.lineWidth = 1.8; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+  };
+  line(3, C.muted, [4, 3]); line(2, C.accent2, []); line(1, C.accent, []);
+}
+function drawDeg() {
+  const [ctx, w, h] = fit($('deg'));
+  const ml = 34, mr = 10, mt = 10, mb = 24, W = w - ml - mr, H = h - mt - mb;
+  const K = Math.min(40, Math.max(...S.deg0, S.kmax));
+  const bin = arr => { const b = new Array(K + 1).fill(0); arr.forEach(k => b[Math.min(k, K)]++); return b.map(c => c / arr.length); };
+  const now = bin(S.adj.map(s => s.size)), init = bin(S.deg0), ymax = Math.max(...now, ...init, 0.05);
+  ctx.font = '11px ' + getComputedStyle(document.body).fontFamily; ctx.fillStyle = C.muted; ctx.strokeStyle = C.rule; ctx.lineWidth = 1;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const f of [0, 0.5, 1]) { const Y = mt + (1 - f) * H; ctx.beginPath(); ctx.moveTo(ml, Y); ctx.lineTo(ml + W, Y); ctx.stroke(); ctx.fillText((f * ymax).toFixed(2), ml - 5, Y); }
+  const bw = W / (K + 1);
+  ctx.fillStyle = C.accent; ctx.globalAlpha = 0.8;
+  now.forEach((v, k) => ctx.fillRect(ml + k * bw + 1, mt + H - v / ymax * H, Math.max(1, bw - 2), v / ymax * H));
+  ctx.globalAlpha = 1; ctx.beginPath();
+  init.forEach((v, k) => { const Y = mt + H - v / ymax * H; k ? ctx.lineTo(ml + k * bw, Y) : ctx.moveTo(ml, Y); ctx.lineTo(ml + (k + 1) * bw, Y); });
+  ctx.strokeStyle = C.muted; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const tick = K > 20 ? 10 : 5;
+  for (let k = 0; k <= K; k += tick) ctx.fillText(k === K && K === 40 ? '40+' : k, ml + (k + 0.5) * bw, mt + H + 5);
+}
+function draw() { drawNet(); drawSpace(); drawTS(); drawDeg(); }
+
+// ---------- loop ----------
+let playing = !window.matchMedia('(prefers-reduced-motion: reduce)').matches, due = 0, last = performance.now(), frame = 0;
+function setPlaying(v) { playing = v; $('play').textContent = v ? 'Pause' : 'Play'; }
+function advance(n) { for (let k = 0; k < n; k++) sweep(); measure(); updateStats(); }
+function tick(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (frame++ % 60 === 0) readColors();
+  if (playing) { due += dt * P.speed; const n = Math.min(10, Math.floor(due)); if (n) { due -= n; advance(n); } }
+  layoutStep(); layoutStep();
+  draw();
+  requestAnimationFrame(tick);
+}
+
+// ---------- controls ----------
+['D1', 'D2', 'dist', 'rho', 'N', 'm', 'seed'].forEach(id => $(id).addEventListener(id === 'rho' || id === 'N' || id === 'm' ? 'input' : 'change', reset));
+['mu', 'speed', 'colA', 'colC'].forEach(id => $(id).addEventListener('input', readParams));
+$('play').addEventListener('click', () => setPlaying(!playing));
+$('step').addEventListener('click', () => { setPlaying(false); advance(1); });
+$('reset').addEventListener('click', reset);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+
+readColors(); reset(); setPlaying(playing);
+for (let k = 0; k < 120; k++) layoutStep();
+window.__lab = { get S() { return S; }, advance, reset, P };
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

@@ -26,6 +26,7 @@ reference.
 - `R/sweep.R`: research sweeps over parameter grids with `manifest.csv` (CLI only).
 - `R/corpus.R`: the blinded corpus (datasets that all show the pattern, from every scenario, with a key kept aside) and the scorer for analysts' predictions; also a CLI.
 - `app.R`: the Shiny GUI (Generate corpus, Explore, Score predictions, Guide). Self-contained with `R/`; every output is a download. `R/theme.R` holds the visual language. `deploy.R` publishes it to shinyapps.io. `app/theme.R` holds the visual language shared with Aydin's other GUIs: bootswatch 3 Paper chrome and the ggplot2 palette orangered2 / #3475BC / black at text size 16.
+- `homophily/index.html`: standalone browser demo (open the file; no R needed) of a separate model: a preferential-attachment network where each agent, every sweep, cuts its tie to the neighbor farthest in attitude space (one or two attitudes) and adds a random tie. Animates the network and attitude space and tracks assortativity, clusters and degrees.
 - `grids/`: YAML sweep grids (`corpus-v1.yaml` is the mechanism-square sweep).
 - `tests/smoke_tests.R`: scenario acceptance tests; must print ALL PASS.
 - `docs/`: proposals and the schema reference.
