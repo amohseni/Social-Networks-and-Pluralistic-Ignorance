@@ -2,11 +2,14 @@
 # Base R plus igraph (for eigenvector and betweenness centrality only).
 # Deterministic given params$seed (set.seed is called inside run_scenario).
 #
-# Model (Aydin's 2026-09-11 spec). A population of n agents on an undirected
-# network. Agent i has a private attitude A_i in {0,1}, a public declaration
-# D_i in {0,1}, and a conformity parameter c_i in [0,1]. Declaring D pays
-#   U_i(D) = c_i * N_i(D) + (1 - c_i) * 1[D = A_i],
-# where N_i(D) is the share of i's neighbors declaring D. Agents best-respond
+# Model (Aydin's 2026-09-11 spec), in the problem statement's notation. A
+# population of N agents (code: n) on an undirected network with adjacency
+# matrix A; agent i's contacts are N_i, d_i = |N_i|. Agent i has a private
+# attitude Y_i in {0,1}, a public declaration X_i in {0,1}, and a conformity
+# parameter c_i in [0,1]. Declaring x pays
+#   U_i(x) = c_i * S_i(x) + (1 - c_i) * 1[x = Y_i],
+# where S_i(x) is the share of i's contacts that i takes to hold x (P_ij = X_j,
+# or P_ij = Y_j in the clairvoyant version). Agents best-respond
 # one at a time in a random order each round until a full round passes with no
 # change in declarations. Attitudes are fixed during play (unless the
 # internalization extension is on). Ties are broken toward the private attitude.
@@ -17,7 +20,7 @@
 # Extensions, each off by default: small_world topology, degree-preserving
 # homophily rewiring, internalization rate, sincere initial declarations for S1.
 
-`%||%` <- function(a, b) if (is.null(a) || length(a) == 0 || (length(a) == 1 && is.na(a))) b else a
+`%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))) y else x
 
 # ------------------------------------------------------------------ parameters
 
@@ -156,7 +159,7 @@ build_graph <- function(E, n) {
 
 # Degree-preserving double-edge swaps that raise the share of same-attitude
 # ties. h = target fraction of edges rewired; attempts capped at 20 |E|.
-rewire_homophily <- function(g, a, h) {
+rewire_homophily <- function(g, Y, h) {
   if (is.na(h) || h <= 0 || nrow(g$edges) < 2) return(g)
   E <- g$edges; ne <- nrow(E)
   keyf <- function(u, v) paste(pmin(u, v), pmax(u, v))
@@ -167,12 +170,12 @@ rewire_homophily <- function(g, a, h) {
     attempts <- attempts + 1L
     ij <- sample.int(ne, 2L); i <- ij[1]; j <- ij[2]
     u1 <- E[i, 1]; v1 <- E[i, 2]; u2 <- E[j, 1]; v2 <- E[j, 2]
-    cur <- (a[u1] == a[v1]) + (a[u2] == a[v2])
+    cur <- (Y[u1] == Y[v1]) + (Y[u2] == Y[v2])
     cands <- list(c(u1, v2, u2, v1), c(u1, u2, v1, v2))
     for (cd in cands) {
       p1 <- cd[1:2]; p2 <- cd[3:4]
       if (p1[1] == p1[2] || p2[1] == p2[2]) next
-      new <- (a[p1[1]] == a[p1[2]]) + (a[p2[1]] == a[p2[2]])
+      new <- (Y[p1[1]] == Y[p1[2]]) + (Y[p2[1]] == Y[p2[2]])
       if (new <= cur) next
       k1 <- keyf(p1[1], p1[2]); k2 <- keyf(p2[1], p2[2])
       if (k1 == k2 || exists(k1, envir = eset, inherits = FALSE) || exists(k2, envir = eset, inherits = FALSE)) next
@@ -217,21 +220,21 @@ weighted_sample_wor <- function(w, k) {
 
 # ------------------------------------------------------------------ dynamics
 
-# U_i(D) = c_i N_i(D) + (1 - c_i) 1[D = A_i]. Declaring A_i beats
-# declaring 1 - A_i by (1 - c_i) - c_i (1 - 2 N_i(A_i)); ties go to A_i.
+# U_i(x) = c_i S_i(x) + (1 - c_i) 1[x = Y_i]. Declaring Y_i beats
+# declaring 1 - Y_i by (1 - c_i) - c_i (1 - 2 S_i(Y_i)); ties go to Y_i.
 # N_i is computed from what the agent observes: neighbors' declarations, or,
 # with clairvoyant perception, neighbors' true attitudes (obs).
-best_response <- function(i, a, cpar, D, nbrs, obs = D) {
+best_response <- function(i, Y, cpar, X, nbrs, obs = X) {
   nb <- nbrs[[i]]
-  if (length(nb) == 0) return(a[i])
-  n_own <- mean(obs[nb] == a[i])
+  if (length(nb) == 0) return(Y[i])
+  n_own <- mean(obs[nb] == Y[i])
   gain <- (1 - cpar[i]) - cpar[i] * (1 - 2 * n_own)
-  if (gain >= 0) a[i] else 1L - a[i]
+  if (gain >= 0) Y[i] else 1L - Y[i]
 }
 
 run_to_fixed_point <- function(st, p, log_trajectory = TRUE) {
   n <- st$g$n; nbrs <- st$g$nbrs
-  a <- st$a; cpar <- st$conformity; D <- st$D
+  Y <- st$Y; cpar <- st$conformity; X <- st$X
   rho <- p$internalization %||% 0
   traj_D <- numeric(0); traj_a <- numeric(0); n_flips <- 0L
   converged <- FALSE; rounds <- 0L
@@ -239,22 +242,22 @@ run_to_fixed_point <- function(st, p, log_trajectory = TRUE) {
   for (t in seq_len(p$max_rounds)) {
     ord <- sample.int(n); changed <- 0L
     for (i in ord) {
-      d_new <- best_response(i, a, cpar, D, nbrs, obs = if (clair) a else D)
-      if (d_new != D[i]) { D[i] <- d_new; changed <- changed + 1L }
+      d_new <- best_response(i, Y, cpar, X, nbrs, obs = if (clair) Y else X)
+      if (d_new != X[i]) { X[i] <- d_new; changed <- changed + 1L }
     }
     flipped <- 0L
     if (rho > 0) {
-      cand <- which(D != a)
+      cand <- which(X != Y)
       flip <- cand[runif(length(cand)) < rho]
-      if (length(flip)) { a[flip] <- D[flip]; flipped <- length(flip); n_flips <- n_flips + flipped }
+      if (length(flip)) { Y[flip] <- X[flip]; flipped <- length(flip); n_flips <- n_flips + flipped }
     }
     rounds <- t
-    if (log_trajectory) { traj_D <- c(traj_D, mean(D)); traj_a <- c(traj_a, mean(a)) }
+    if (log_trajectory) { traj_D <- c(traj_D, mean(X)); traj_a <- c(traj_a, mean(Y)) }
     # Absorbing state: a quiet round; with internalization on, additionally no
     # agent is left declaring against its attitude (else a later flip is possible).
-    if (changed == 0L && flipped == 0L && (rho <= 0 || !any(D != a))) { converged <- TRUE; break }
+    if (changed == 0L && flipped == 0L && (rho <= 0 || !any(X != Y))) { converged <- TRUE; break }
   }
-  st$a <- a; st$D <- D
+  st$Y <- Y; st$X <- X
   st$rounds <- rounds; st$converged <- converged; st$n_internalized <- n_flips
   st$trajectory <- if (log_trajectory) data.frame(round = seq_along(traj_D), mean_declaration = traj_D, mean_attitude = traj_a) else NULL
   st
@@ -262,8 +265,8 @@ run_to_fixed_point <- function(st, p, log_trajectory = TRUE) {
 
 # ------------------------------------------------------------------ scenarios
 
-new_state <- function(g, a, cpar, D, p) {
-  list(g = g, a = as.integer(a), a0 = as.integer(a), conformity = cpar, D = as.integer(D), D0 = as.integer(D), params = p)
+new_state <- function(g, Y, cpar, X, p) {
+  list(g = g, Y = as.integer(Y), Y0 = as.integer(Y), conformity = cpar, X = as.integer(X), X0 = as.integer(X), params = p)
 }
 
 graph_from_params <- function(p) {
@@ -278,26 +281,26 @@ run_scenario <- function(params) {
   g <- graph_from_params(p)
   n <- p$n
   if (p$scenario == "S1") {
-    a <- as.integer(runif(n) < p$pi0)
-    g <- rewire_homophily(g, a, p$homophily)
-    D <- if (p$init_decl == "sincere") a else sample(0:1, n, replace = TRUE)
-    st <- new_state(g, a, draw_conformity(n, p), D, p)
+    Y <- as.integer(runif(n) < p$pi0)
+    g <- rewire_homophily(g, Y, p$homophily)
+    X <- if (p$init_decl == "sincere") Y else sample(0:1, n, replace = TRUE)
+    st <- new_state(g, Y, draw_conformity(n, p), X, p)
   } else if (p$scenario == "S2") {
     cen <- centrality_scores(g, p$centrality)
     n_min <- floor((1 - p$pi0) * n)
     w <- pmax(cen, 1e-9)^p$lambda
-    a <- rep(1L, n)
-    if (n_min > 0) a[weighted_sample_wor(w, n_min)] <- 0L   # central nodes hold the minority attitude
-    g <- rewire_homophily(g, a, p$homophily)
+    Y <- rep(1L, n)
+    if (n_min > 0) Y[weighted_sample_wor(w, n_min)] <- 0L   # central nodes hold the minority attitude
+    g <- rewire_homophily(g, Y, p$homophily)
     cpar <- if (isTRUE(p$pure)) rep(0, n) else draw_conformity(n, p)
-    st <- new_state(g, a, cpar, a, p)                       # declarations start sincere
+    st <- new_state(g, Y, cpar, Y, p)                       # declarations start sincere
   } else if (p$scenario == "S3") {
-    a <- rep(1L, n); D <- rep(1L, n)                          # consensus on attitude 1: a fixed point
+    Y <- rep(1L, n); X <- rep(1L, n)                          # consensus on attitude 1: a fixed point
     cpar <- draw_conformity(n, p)
     flip <- sample.int(n, round(p$psi * n))
-    a[flip] <- 0L                                             # private change of mind
-    g <- rewire_homophily(g, a, p$homophily)
-    st <- new_state(g, a, cpar, D, p)
+    Y[flip] <- 0L                                             # private change of mind
+    g <- rewire_homophily(g, Y, p$homophily)
+    st <- new_state(g, Y, cpar, X, p)
   } else stop("unknown scenario: ", p$scenario)
   st <- run_to_fixed_point(st, p, log_trajectory = TRUE)
   st$params <- p

@@ -15,71 +15,83 @@ cache_dir <- file.path(tempdir(), "pi_cache"); dir.create(cache_dir, showWarning
 SCENARIO_CHOICES <- c("1. Conformity from a random start" = "S1", "2. Private change of mind" = "S3", "3. Well-connected minority (friendship paradox)" = "S2")
 
 # ------------------------------------------------------------------ text
-
 description_band <- fluidRow(
   style = PI_BAND_STYLE,
   column(width = 4, div(HTML(
     "<strong>What this tool is for.</strong> Surveys often find that many people privately hold an attitude but believe that most of the people around them hold the opposite one. Two very different things can lie behind such data. In one, people are wrong about the people around them, because those people say one thing in public and think another in private. In the other, people are right about the people around them, and it only looks like a mistake from the outside, because well-connected people are seen by many and tend to hold the less common attitude. This tool simulates both, produces survey datasets from them, and keeps a key, so that statistical methods for telling them apart can be tested.
     </br></br>
-    <strong>The model.</strong> There are \\(n\\) agents connected by a network. Each agent \\(i\\) has three things: a binary private attitude \\(A_i \\in \\{0,1\\}\\), which is what it really thinks; a binary public declaration \\(D_i \\in \\{0,1\\}\\), which is what it says; and a conformity parameter \\(c_i \\in [0,1]\\), which is how much it cares about agreeing with its neighbors rather than saying what it thinks. Declaring \\(D\\) pays
-    \\[U_i(D) = c_i \\, N_i(D) + (1-c_i) \\, \\mathbf{1}[D = A_i],\\]
-    where \\(N_i(D)\\) is the share of \\(i\\)'s neighbors that \\(i\\) takes to hold \\(D\\). An agent with \\(c_i = 0\\) always says what it thinks; an agent with \\(c_i = 1\\) always says what most of its neighbors seem to think. Agents take turns, in a random order each round, choosing the declaration that pays more, until a whole round passes with no change. Attitudes never change; only declarations do. Agents take their neighbors at their word: they assume each neighbor holds the attitude it declares.
+    <strong>The model.</strong> There are \\(N\\) agents connected by a network with adjacency matrix \\(\\mathbf{A}\\); agent \\(i\\)'s contacts are \\(\\mathcal{N}_i\\), and \\(d_i = |\\mathcal{N}_i|\\) is their number. Each agent \\(i\\) has three things: a binary private attitude \\(Y_i \\in \\{0,1\\}\\), which is what it really thinks; a binary public declaration \\(X_i \\in \\{0,1\\}\\), which is what it says; and a conformity parameter \\(c_i \\in [0,1]\\), which is how much it cares about agreeing with its contacts rather than saying what it thinks. Declaring \\(x\\) pays
+    \\[U_i(x) = c_i \\, S_i(x) + (1-c_i) \\, \\mathbf{1}[x = Y_i],\\]
+    where \\(S_i(x)\\) is the share of \\(i\\)'s contacts that \\(i\\) takes to hold \\(x\\). An agent with \\(c_i = 0\\) always says what it thinks; an agent with \\(c_i = 1\\) always says what most of its contacts seem to think. Agents take turns, in a random order each round, choosing the declaration that pays more, until a whole round passes with no change. Attitudes never change; only declarations do. Agents take their contacts at their word: writing \\(P_{ij}\\) for the attitude \\(i\\) believes contact \\(j\\) holds, \\(P_{ij} = X_j\\).
     </br></br>
     <strong>Open-Source Code:</strong> The <a href='https://www.r-project.org/'>R</a> and <a href='https://shiny.rstudio.com/'>Shiny</a> code is available at <a href='https://github.com/amohseni/Social-Networks-and-Pluralistic-Ignorance'>www.github.com/amohseni</a>."))),
   column(width = 4, div(HTML(
-    "<strong>Pluralistic ignorance.</strong> This is a state of an individual agent, judged against that agent's own neighbors. Agent \\(i\\) is in a state of pluralistic ignorance when three things are true at once: \\(i\\) believes that most of its neighbors hold the opposite attitude to its own; \\(i\\) is wrong about that, because in fact at least half of its neighbors share its attitude; and \\(i\\) nevertheless declares the opposite attitude, going along with what it wrongly takes to be the local majority. Writing \\(\\hat{A}_{ij}\\) for the attitude \\(i\\) believes neighbor \\(j\\) holds, \\(N(i)\\) for the set of \\(i\\)'s neighbors, and \\(d_i\\) for their number, the three conditions are
-    \\[\\frac{1}{d_i}\\sum_{j \\in N(i)} \\mathbf{1}[\\hat{A}_{ij} \\neq A_i] > \\tfrac{1}{2}, \\qquad \\frac{1}{d_i}\\sum_{j \\in N(i)} \\mathbf{1}[A_j \\neq A_i] \\le \\tfrac{1}{2}, \\qquad D_i \\neq A_i.\\]
+    "<strong>Pluralistic ignorance.</strong> This is a state of an individual agent, judged against that agent's own contacts. Agent \\(i\\) is in a state of pluralistic ignorance when three things are true at once: \\(i\\) believes that most of its contacts hold the opposite attitude to its own; \\(i\\) is wrong about that, because in fact at least half of its contacts share its attitude; and \\(i\\) nevertheless declares the opposite attitude, going along with what it wrongly takes to be the local majority. In symbols, the three conditions are
+    \\[\\frac{1}{d_i}\\sum_{j \\in \\mathcal{N}_i} \\mathbf{1}[P_{ij} \\neq Y_i] > \\tfrac{1}{2}, \\qquad \\frac{1}{d_i}\\sum_{j \\in \\mathcal{N}_i} \\mathbf{1}[Y_j \\neq Y_i] \\le \\tfrac{1}{2}, \\qquad X_i \\neq Y_i.\\]
     It can happen to holders of either attitude, and to both at once in the same population. The prevalence of pluralistic ignorance in a population is the share of all agents in that state. The quantity the analysts are asked to estimate is this prevalence.
     </br></br>
     <strong>Why the data can mislead.</strong> Only the first condition is visible in a survey: a respondent says that most of their contacts hold the other attitude. The second condition, whether that belief is wrong, is not visible, and here the network matters. On average, a person's contacts have more contacts than the person does, so well-connected people appear in a great many people's circles. If the well-connected people tend to hold the less common attitude, then most people, quite correctly, see a circle in which their own attitude is the minority. Their beliefs are accurate, nobody is in a state of pluralistic ignorance, and yet the survey looks exactly as it would if everyone were. Whether conformity then also leads them to declare the other attitude is a separate matter, which is why scenario 3 comes in three versions."))),
   column(width = 4, div(HTML(
     "<strong>Scenarios.</strong>
     <ol>
-      <li><strong>Conformity from a random start.</strong> Attitudes are assigned at random with a chosen majority, and declarations start at random too. Conformity then reshapes the declarations round by round. Pluralistic ignorance arises where an agent's neighbors share its attitude but happen to be declaring the other one.</li>
+      <li><strong>Conformity from a random start.</strong> Attitudes are assigned at random with a chosen majority, and declarations start at random too. Conformity then reshapes the declarations round by round. Pluralistic ignorance arises where an agent's contacts share its attitude but happen to be declaring the other one.</li>
       <li><strong>Private change of mind.</strong> Everyone starts out holding and declaring attitude 1. Then a majority of agents privately switch to attitude 0, while everyone is still declaring 1. Agents who switched see only declarations of 1 around them, wrongly conclude that they are alone, and, if conformity is strong enough, keep declaring 1: pluralistic ignorance among the new majority.</li>
-      <li><strong>Well-connected minority.</strong> The less common attitude is placed on the most central agents. Three versions: with conformity to declarations, agents respond to what their neighbors say, as in the other scenarios; with conformity to true attitudes, agents can see what their neighbors really think and conform to that; with conformity off, everyone declares sincerely. In the last two versions no agent is ever wrong about its neighbors, so the prevalence of pluralistic ignorance is exactly zero, even though the data show the pattern.</li>
+      <li><strong>Well-connected minority.</strong> The less common attitude is placed on the most central agents. Three versions: with conformity to declarations, agents respond to what their contacts say, as in the other scenarios; with conformity to true attitudes, agents can see what their contacts really think and conform to that; with conformity off, everyone declares sincerely. In the last two versions no agent is ever wrong about its contacts, so the prevalence of pluralistic ignorance is exactly zero, even though the data show the pattern.</li>
     </ol>
-    <strong>How to use it.</strong> <em>Generate corpus</em> builds a set of survey datasets from the scenarios you choose, all of which show the pattern, and a key with the true prevalence in each. Give the analysts the datasets; keep the key. <em>Explore</em> runs one scenario at a time and shows what happens inside the population.")))
+    <strong>How to use it.</strong> <em>Generate corpus</em> builds a set of survey datasets from the scenarios you choose, all of which show the pattern, written in each data configuration you tick (C1 to C5: from attitude and perceived prevalence alone up to a census with the full network), and a key with the true prevalence in each. Give the analysts the datasets; keep the key. <em>Explore</em> runs one scenario at a time and shows what happens inside the population.")))
 )
 
+config_table_html <- function() {
+  rows <- vapply(CONFIG_CODES, function(code) {
+    cs <- config_summary(code, add_pn = FALSE)
+    est <- switch(code,
+      C1 = "the perception discrepancy \\(\\Delta_G = \\mu_P - \\mu_Y\\) only; the two processes cannot be told apart from these columns alone",
+      C2 = "whether \\(X_i\\) departs from \\(Y_i\\) (the conformity condition of the definition)",
+      C3 = "\\(\\mathrm{Cov}(D, Y)\\), the covariance between attitude and number of contacts, which the friendship-paradox process requires; the budget tests for that process alone",
+      C3a = "\\(\\eta\\), the degree-weighted perception error: the mean of \\(P_{ij}\\) over all reported contacts minus the degree-weighted mean of the respondents' own \\(Y_i\\); zero when beliefs about contacts are accurate",
+      C4 = "the perception error \\(P_{\\mathcal{N}_i} - \\mu_{Y,\\mathcal{N}_i}\\) respondent by respondent, and the exposure bias \\(\\mu_{Y,\\mathcal{N}_i} - \\mu_Y\\); the first configuration at which the two processes are separated",
+      C5 = "everything exactly; the reference point and the simulation ground truth")
+    sprintf("<tr><td><b>%s</b></td><td>%s</td><td>%s</td></tr>", code, paste(sprintf("<code>%s</code>", cs$files), collapse = "<br>"), est)
+  }, character(1))
+  paste0("<table class='table table-condensed' style='max-width: 1100px;'><tr><th>Configuration</th><th>Files and columns</th><th>What can be estimated</th></tr>", paste(rows, collapse = ""), "</table>")
+}
+
 guide_html <- HTML("
+<h4>0. Notation</h4>
+<p>The symbols follow the project's problem statement (<em>Pluralistic Ignorance and the Friendship Paradox</em>, September 2026). \\(\\mathbf{A}\\) is the adjacency matrix of the population of \\(N\\) agents; \\(n\\) is the number of respondents in a survey. For agent \\(i\\): \\(Y_i\\) is the private attitude, \\(X_i\\) the public declaration (the problem statement's outward behavior), \\(P_i\\) the perceived share of the whole population holding attitude 1, \\(P_{\\mathcal{N}_i}\\) the perceived share among \\(i\\)'s own contacts, \\(\\mathcal{N}_i\\) the set of contacts, and \\(d_i = |\\mathcal{N}_i|\\) their number. Population means are \\(\\mu_Y\\), \\(\\mu_X\\), \\(\\mu_P\\); local means over \\(i\\)'s contacts are \\(\\mu_{Y,\\mathcal{N}_i}\\) and \\(\\mu_{X,\\mathcal{N}_i}\\); \\(\\Delta_G = \\mu_P - \\mu_Y\\) is the perception discrepancy. Two symbols are additions for the simulation: \\(P_{ij}\\), the attitude \\(i\\) believes contact \\(j\\) holds (so \\(P_{\\mathcal{N}_i} = \\tfrac{1}{d_i}\\sum_{j \\in \\mathcal{N}_i} P_{ij}\\)), and \\(c_i\\), the conformity parameter. The columns of the exported files use plain names: \\(Y_i\\) is <code>attitude</code>, \\(X_i\\) is <code>declaration</code>, \\(P_i\\) is <code>perceived_prevalence</code>, \\(P_{\\mathcal{N}_i}\\) is <code>perceived_contacts_mean</code>, \\(d_i\\) is <code>degree</code>, \\(P_{ij}\\) is <code>perceived_neighbor_attitude</code>; the key uses <code>mu_Y</code>, <code>mu_P</code>, <code>Delta_G</code>, and so on.</p>
+
 <h4>1. The model</h4>
-<p>There are \\(n\\) agents on an undirected network. Each agent \\(i\\) has a binary private attitude \\(A_i \\in \\{0,1\\}\\), a binary public declaration \\(D_i \\in \\{0,1\\}\\), and a conformity parameter \\(c_i \\in [0,1]\\) drawn from a chosen distribution. The payoff of declaring \\(D\\) is \\(U_i(D) = c_i N_i(D) + (1-c_i)\\,\\mathbf{1}[D = A_i]\\), where \\(N_i(D)\\) is the share of \\(i\\)'s neighbors that \\(i\\) takes to hold \\(D\\). An agent therefore declares its own attitude when \\((1-c_i) \\ge c_i\\,(1 - 2N_i(A_i))\\) and the other attitude otherwise; when the two payoffs are equal it declares its own attitude. In each round, agents update one at a time in a random order. The process stops at the first round in which no declaration changes. If no such round occurs within the round cap, the run is recorded as not converged. Attitudes do not change during a run.</p>
-<p>What an agent takes its neighbors to hold is, in every scenario but one, what they declare: \\(\\hat{A}_{ij} = D_j\\). In the clairvoyant version of scenario 3 it is what they really hold: \\(\\hat{A}_{ij} = A_j\\). A respondent's perceived prevalence in the survey is the share of its neighbors it takes to hold attitude 1.</p>
+<p>There are \\(N\\) agents on an undirected network. Each agent \\(i\\) has a binary private attitude \\(Y_i \\in \\{0,1\\}\\), a binary public declaration \\(X_i \\in \\{0,1\\}\\), and a conformity parameter \\(c_i \\in [0,1]\\) drawn from a chosen distribution. The payoff of declaring \\(x\\) is \\(U_i(x) = c_i S_i(x) + (1-c_i)\\,\\mathbf{1}[x = Y_i]\\), where \\(S_i(x) = \\frac{1}{d_i}\\sum_{j \\in \\mathcal{N}_i} \\mathbf{1}[P_{ij} = x]\\) is the share of \\(i\\)'s contacts that \\(i\\) takes to hold \\(x\\). An agent therefore declares its own attitude when \\((1-c_i) \\ge c_i\\,(1 - 2S_i(Y_i))\\) and the other attitude otherwise; when the two payoffs are equal it declares its own attitude. In each round, agents update one at a time in a random order. The process stops at the first round in which no declaration changes. If no such round occurs within the round cap, the run is recorded as not converged. Attitudes do not change during a run.</p>
+<p>What an agent takes its contacts to hold is, in every scenario but one, what they declare: \\(P_{ij} = X_j\\). In the clairvoyant version of scenario 3 it is what they really hold: \\(P_{ij} = Y_j\\). A respondent's perceived prevalence \\(P_i\\) in the survey is the share of its contacts it takes to hold attitude 1, so \\(P_i = P_{\\mathcal{N}_i}\\) unless extrapolation noise is added at survey time.</p>
 
 <h4>2. Definition of pluralistic ignorance</h4>
-<p>Pluralistic ignorance is a state of an individual agent, judged against that agent's own neighbors rather than against the whole population. Agent \\(i\\) is in that state when three conditions hold: \\(i\\) believes that a majority of its neighbors hold the attitude opposite to its own, \\(\\frac{1}{d_i}\\sum_{j \\in N(i)} \\mathbf{1}[\\hat{A}_{ij} \\neq A_i] > 1/2\\); that belief is mistaken, \\(\\frac{1}{d_i}\\sum_{j \\in N(i)} \\mathbf{1}[A_j \\neq A_i] \\le 1/2\\); and \\(i\\) declares the opposite attitude, \\(D_i \\neq A_i\\). Holders of either attitude can be in this state, and both can be at the same time in one population: an agent holding 1 whose neighbors hold 1 but declare 0, and an agent holding 0 whose neighbors hold 0 but declare 1, are both in a state of pluralistic ignorance. The prevalence of pluralistic ignorance is the share of all agents in the state; the tool also reports it separately for holders of each attitude.</p>
-<p>The pattern that motivates the question is the first condition on its own: an agent believes that its own attitude is the minority one among its neighbors. A dataset shows the pattern when more than half of the agents (and of the respondents) believe this. Every dataset in a generated corpus shows the pattern. The prevalence of pluralistic ignorance in it can be anything from zero upward, and estimating it is the analysts' task.</p>
+<p>Pluralistic ignorance is a state of an individual agent, judged against that agent's own contacts rather than against the whole population. Agent \\(i\\) is in that state when three conditions hold: \\(i\\) believes that a majority of its contacts hold the attitude opposite to its own, \\(\\frac{1}{d_i}\\sum_{j \\in \\mathcal{N}_i} \\mathbf{1}[P_{ij} \\neq Y_i] > 1/2\\); that belief is mistaken, \\(\\frac{1}{d_i}\\sum_{j \\in \\mathcal{N}_i} \\mathbf{1}[Y_j \\neq Y_i] \\le 1/2\\); and \\(i\\) declares the opposite attitude, \\(X_i \\neq Y_i\\). Holders of either attitude can be in this state, and both can be at the same time in one population: an agent holding 1 whose contacts hold 1 but declare 0, and an agent holding 0 whose contacts hold 0 but declare 1, are both in a state of pluralistic ignorance. The prevalence of pluralistic ignorance is the share of all agents in the state; the tool also reports it separately for holders of each attitude.</p>
+<p>The pattern that motivates the question is the first condition on its own: an agent believes that its own attitude is the minority one among its contacts. A dataset shows the pattern when more than half of the agents (and of the respondents) believe this. Every dataset in a generated corpus shows the pattern. The prevalence of pluralistic ignorance in it can be anything from zero upward, and estimating it is the analysts' task.</p>
 
 <h4>3. Why the pattern can appear without pluralistic ignorance</h4>
-<p>Suppose every declaration is sincere and every belief about a neighbor is correct. On average, an agent's neighbors have more neighbors than the agent does (the friendship paradox), so well-connected agents are part of a large share of all neighborhoods. If the well-connected agents tend to hold the less common attitude, then most agents have neighborhoods in which their own attitude is the minority, and they believe so correctly. The pattern is present, but the second condition of the definition fails for everyone, so the prevalence of pluralistic ignorance is zero. A star network is the limiting case: the center holds attitude 0, every other agent holds 1 and has exactly one neighbor, the center, so every non-center agent correctly believes that all of its neighbors hold 0.</p>
+<p>Suppose every declaration is sincere and every belief about a contact is correct. On average, an agent's contacts have more contacts than the agent does (the friendship paradox), so well-connected agents are part of a large share of all circles. If the well-connected agents tend to hold the less common attitude, then most agents have circles in which their own attitude is the minority, and they believe so correctly. The pattern is present, but the second condition of the definition fails for everyone, so the prevalence of pluralistic ignorance is zero. A star network is the limiting case: the center holds attitude 0, every other agent holds 1 and has exactly one contact, the center, so every non-center agent correctly believes that all of its contacts hold 0.</p>
 
-<h4>4. What the plots show</h4>
-<p>In the Explore tab, the bar chart reports, for the current run, the share of agents who believe their attitude is the local minority, the share whose belief about which attitude most of their neighbors hold is wrong, the share declaring against their attitude, and the prevalence of pluralistic ignorance, overall and by attitude. The scatter plot places the run among a stored set of runs from every scenario version, with the share believing they are in the local minority on the horizontal axis and the prevalence of pluralistic ignorance on the vertical axis: runs from the accurate-perception versions lie on the horizontal axis. The line chart shows the share declaring 1 and the share holding 1 in each round. The same scatter plot in the Generate corpus tab shows the generated datasets.</p>
+<h4>4. The decomposition of the perception discrepancy</h4>
+<p>The problem statement writes each respondent's error as \\(P_i - \\mu_Y = (\\mu_{Y,\\mathcal{N}_i} - \\mu_Y) + (P_{\\mathcal{N}_i} - \\mu_{Y,\\mathcal{N}_i}) + (P_i - P_{\\mathcal{N}_i})\\): the exposure bias, the perception error, and the extrapolation error. The key reports the first two averaged over agents, as <code>exposure_bias</code> and <code>perception_error</code>; their sum is \\(\\Delta_G\\), since the extrapolation error is zero in the model. The exposure bias is nonzero only when attitude is correlated with how often an agent appears in others' circles, which is the mechanism of the friendship-paradox process, and it is zero on any regular network. The perception error is nonzero only when some declarations differ from attitudes, which is the mechanism of pluralistic ignorance. It is a net quantity: errors in opposite directions cancel in it, so the key also reports <code>perception_error_gross</code>, the share of all contact perceptions that are wrong. The exposure distortion of behavior, \\(\\Delta_F = \\frac{1}{N}\\sum_i \\mu_{X,\\mathcal{N}_i} - \\mu_X\\), is reported as <code>Delta_F</code>. The statistic \\(\\eta = \\sum_i d_i (P_{\\mathcal{N}_i} - Y_i) / \\sum_i d_i\\), the degree-weighted perception error proposed in the problem statement, is reported as <code>eta</code> for the population and as <code>eta_sample_as_coded</code> computed on the respondents; it is zero whenever every agent perceives its contacts accurately.</p>
 
-<h4>5. The scenarios</h4>
+<h4>5. What the plots show</h4>
+<p>In the Explore tab, the bar chart reports, for the current run, the share of agents who believe their attitude is the local minority, the share whose belief about which attitude most of their contacts hold is wrong, the share declaring against their attitude, and the prevalence of pluralistic ignorance, overall and by attitude. The scatter plot places the run among a stored set of runs from every scenario version, with the share believing they are in the local minority on the horizontal axis and the prevalence of pluralistic ignorance on the vertical axis: runs from the accurate-perception versions lie on the horizontal axis. The line chart shows the share declaring 1 and the share holding 1 in each round. The same scatter plot in the Generate corpus tab shows the generated datasets.</p>
+
+<h4>6. The scenarios</h4>
 <ol>
-<li><strong>Conformity from a random start.</strong> Attitudes are drawn independently with a chosen prevalence \\(\\pi_0\\) of attitude 1, and declarations start at random. Conformity then changes the declarations. Pluralistic ignorance arises for agents whose neighbors mostly share their attitude but are declaring the other one; the more the conformity parameters are concentrated near \\(1\\), the more of it there is.</li>
-<li><strong>Private change of mind.</strong> Every agent starts out holding and declaring attitude \\(1\\). Then a share \\(\\psi > 1/2\\) of agents changes attitude to \\(0\\) while every declaration is still \\(1\\). Each agent that changed declares \\(0\\) only if its conformity parameter is low enough given what its neighbors are saying. Either the declarations change to \\(0\\) across the population, or they stay at \\(1\\); in the second case the agents that changed, most of whose neighbors also changed, believe they are alone and keep declaring \\(1\\): pluralistic ignorance.</li>
-<li><strong>Well-connected minority.</strong> A share \\(1 - \\pi_0\\) of agents receives attitude \\(0\\), chosen with probability proportional to centrality raised to the power \\(\\lambda\\), using one centrality measure for the whole corpus (degree by default). Three versions. <em>Conformity to declarations</em>: agents conform to what neighbors declare, as in the other scenarios; peripheral agents may come to declare the central agents' attitude and central agents the peripheral agents' attitude, and some agents can then be in a state of pluralistic ignorance. <em>Conformity to true attitudes</em>: agents can see what their neighbors really hold and conform to that; beliefs are accurate, so the prevalence is zero, although many agents declare against their attitude. <em>Conformity off</em>: \\(c_i = 0\\) for every agent; declarations are sincere, beliefs accurate, prevalence zero.</li>
+<li><strong>Conformity from a random start.</strong> Attitudes are drawn independently with a chosen prevalence \\(\\pi_0\\) of attitude 1 (the expected value of \\(\\mu_Y\\)), and declarations start at random. Conformity then changes the declarations. Pluralistic ignorance arises for agents whose contacts mostly share their attitude but are declaring the other one; the more the conformity parameters are concentrated near \\(1\\), the more of it there is.</li>
+<li><strong>Private change of mind.</strong> Every agent starts out holding and declaring attitude \\(1\\). Then a share \\(\\psi > 1/2\\) of agents changes attitude to \\(0\\) while every declaration is still \\(1\\). Each agent that changed declares \\(0\\) only if its conformity parameter is low enough given what its contacts are saying. Either the declarations change to \\(0\\) across the population, or they stay at \\(1\\); in the second case the agents that changed, most of whose contacts also changed, believe they are alone and keep declaring \\(1\\): pluralistic ignorance.</li>
+<li><strong>Well-connected minority.</strong> A share \\(1 - \\pi_0\\) of agents receives attitude \\(0\\), chosen with probability proportional to centrality raised to the power \\(\\lambda\\), using one centrality measure for the whole corpus (degree by default). Three versions. <em>Conformity to declarations</em>: agents conform to what contacts declare, as in the other scenarios; peripheral agents may come to declare the central agents' attitude and central agents the peripheral agents' attitude, and some agents can then be in a state of pluralistic ignorance. <em>Conformity to true attitudes</em>: agents can see what their contacts really hold and conform to that; beliefs are accurate, so the prevalence is zero, although many agents declare against their attitude. <em>Conformity off</em>: \\(c_i = 0\\) for every agent; declarations are sincere, beliefs accurate, prevalence zero.</li>
 </ol>
 
-<h4>6. The generated corpus and the key</h4>
-<p>The <em>Generate corpus</em> tab produces a set of datasets. Each comes from one run of one scenario version, and only runs that show the pattern, in the population and in the sample of respondents, are kept; the other runs are discarded and counted. The number of datasets per scenario version is chosen by the user. For each dataset, the parameters are drawn at random from ranges that can be changed under the advanced options: population size, contacts per new agent, the majority share, the conformity distribution (\\(c_i \\sim \\mathrm{beta}(a, 1)\\), one range of \\(a\\) for every scenario), and the centrality exponent. One centrality measure and one network family are used for the whole corpus, so that neither differs between the processes. The family is preferential attachment (Barabási-Albert) by default; a random graph (Erdős-Rényi) or a small world (Watts-Strogatz) can be chosen instead, with their own parameter ranges. The coding of attitudes as \\(0\\) and \\(1\\) is reversed in a random half of the datasets, respondent identifiers are assigned at random, and dataset numbers are assigned at random.</p>
-<p>The files for the analysts are <code>README.txt</code>, which describes the files and the task without describing any individual dataset, <code>respondents.csv</code> (one row per respondent, all datasets in one file, identified by the column <code>dataset_id</code>), and, if contact perceptions are recorded, <code>ego_network.csv</code> (one row per respondent-contact pair). The key, downloaded separately, is <code>key.csv</code>: one row per dataset with the process (genuine pluralistic ignorance or friendship paradox), the scenario version, every parameter, the prevalence of pluralistic ignorance (overall and for each attitude as coded), the share of agents who believe they are in the local minority, the share declaring against their attitude, and the edge-end test computed on the sample. Two further files hold the full final state of every population: <code>nodes.csv</code> (one row per agent, numbered as in <code>respondent_id</code>, with attitude, declaration, perceived prevalence, degree, conformity parameter, whether the agent was sampled, whether it believes it is in the local minority, and whether it is in a state of pluralistic ignorance) and <code>edges.csv</code> (one row per tie).</p>
+<h4>7. The generated corpus and the key</h4>
+<p>The <em>Generate corpus</em> tab produces a set of datasets. Each comes from one run of one scenario version, and only runs that show the pattern, in the population and in the sample of respondents, are kept; the other runs are discarded and counted. The number of datasets per scenario version is chosen by the user. For each dataset, the parameters are drawn at random from ranges that can be changed under the advanced options: population size \\(N\\), contacts per new agent, the majority share, the conformity distribution (\\(c_i \\sim \\mathrm{beta}(a, 1)\\), one range of \\(a\\) for every scenario), and the centrality exponent. One centrality measure and one network family are used for the whole corpus, so that neither differs between the processes. The family is preferential attachment (Barabási-Albert) by default; a random graph (Erdős-Rényi) or a small world (Watts-Strogatz) can be chosen instead, with their own parameter ranges. The coding of attitudes as \\(0\\) and \\(1\\) is reversed in a random half of the datasets, respondent identifiers are assigned at random, and dataset numbers are assigned at random.</p>
+<p>The files for the analysts are written once per data configuration (section 8), each configuration in its own folder with a <code>README.txt</code> codebook, <code>respondents.csv</code> (one row per respondent, all datasets in one file, identified by the column <code>dataset_id</code>), and, where the configuration records contacts, <code>ego_network.csv</code> (one row per respondent-contact pair) and <code>network_edges.csv</code> (one row per tie). The key, downloaded separately, is <code>key.csv</code>: one row per dataset with the process (genuine pluralistic ignorance or friendship paradox), the scenario version, every parameter, \\(N\\) and \\(n\\), the prevalence of pluralistic ignorance (overall and for each attitude as coded), the share of agents who believe they are in the local minority, the share declaring against their attitude, the exposure bias and the perception error, \\(\\Delta_F\\), and \\(\\eta\\) for the population and on the sample. Two further files hold the full final state of every population: <code>nodes.csv</code> (one row per agent, numbered as in <code>respondent_id</code>, with \\(Y_i\\), \\(X_i\\), \\(P_i\\), \\(P_{\\mathcal{N}_i}\\), \\(d_i\\), \\(c_i\\), whether the agent was sampled, whether it answered when named as a contact, whether it believes it is in the local minority, and whether it is in a state of pluralistic ignorance) and <code>edges.csv</code> (one row per tie).</p>
 
-<h4>7. Survey designs: what the data record</h4>
-<p>Every dataset records each respondent's attitude and perceived prevalence. Each further option adds columns. The table lists what each addition makes it possible to estimate.</p>
-<table class='table table-condensed' style='max-width: 1000px;'>
-<tr><th>Recorded</th><th>File and columns</th><th>What can be estimated</th></tr>
-<tr><td>attitude, perceived prevalence</td><td><code>respondents.csv</code>: respondent_id, attitude, perceived_prevalence</td><td>the pattern itself; the two processes cannot be distinguished from these columns alone</td></tr>
-<tr><td>+ number of contacts</td><td><code>respondents.csv</code> + degree</td><td>the covariance between attitude and degree, which the structural process requires and the other does not</td></tr>
-<tr><td>+ own declaration</td><td><code>respondents.csv</code> + declaration</td><td>the share of respondents whose declaration differs from their attitude (the third condition of the definition)</td></tr>
-<tr><td>+ perceived attitude of each contact, contacts anonymous</td><td><code>ego_network.csv</code>: respondent_id, neighbor_slot, perceived_neighbor_attitude</td><td>the edge-end test: the mean perceived attitude over all reported contacts, minus the degree-weighted mean of the respondents' own attitudes; zero when beliefs about contacts are accurate</td></tr>
-<tr><td>+ each contact's number of contacts</td><td><code>ego_network.csv</code> + neighbor_degree</td><td>how much each contact is over-represented in circles, and so how far the pattern can be explained by structure</td></tr>
-<tr><td>+ contacts' identities and true attitudes</td><td><code>ego_network.csv</code> + neighbor_id, neighbor_attitude</td><td>the second condition of the definition directly; with these columns the state of each respondent is observable</td></tr>
-</table>
-
+<h4>8. Data configurations: what the survey records</h4>
+<p>A data configuration is what a study records about each respondent. The five configurations below are those of the problem statement (board of 27 September), in order of increasing information, with one addition, C3a, that sits between C3 and C4. \\(P_{\\mathcal{N}_i}\\) can be added to any configuration as the item <code>perceived_contacts_mean</code>; the contacts' \\((X_j, Y_j, d_j)\\) are <code>neighbor_declaration</code>, <code>neighbor_attitude</code>, <code>neighbor_degree</code> in <code>ego_network.csv</code>; the global network \\(\\mathbf{A}\\) is <code>network_edges.csv</code>. Every configuration is a nested view of the same datasets, with the same identifiers, so analysts can receive them one at a time.</p>
+", config_table_html(), "
+<p>In this model respondents take the share among their contacts as their estimate for the population, so \\(P_i = P_{\\mathcal{N}_i}\\) and the extrapolation error of the decomposition is zero unless extrapolation noise is added (Generate corpus, parameter ranges). With the ego network, the contacts' own answers are present only for contacts who answered the survey; the share who answer can be set there too.</p>
 ")
 
 # ------------------------------------------------------------------ UI
@@ -95,8 +107,8 @@ explore_controls <- wellPanel(
   h5s("Scenario"),
   radioButtons("scenario", NULL, SCENARIO_CHOICES),
   hp("Scenarios 1 and 2 produce genuine pluralistic ignorance. Scenario 3 produces the same pattern in the data through the structure of the network."),
-  conditionalPanel("input.scenario != 'S3'", sl("pi0", "Share of agents holding attitude 1 \\(\\pi_0\\):", 0.5, 0.99, 0.6, 0.01),
-    hp("The rest hold attitude 0. Attitudes are assigned at random with this share.")),
+  conditionalPanel("input.scenario != 'S3'", sl("pi0", "Share of agents holding attitude \\(Y = 1\\), \\(\\pi_0\\):", 0.5, 0.99, 0.6, 0.01),
+    hp("The rest hold attitude 0. Attitudes are assigned at random with this share, the expected value of \\(\\mu_Y\\).")),
   conditionalPanel("input.scenario == 'S3'", sl("psi", "Share of agents who change their mind \\(\\psi\\):", 0.5, 1, 0.7, 0.01),
     hp("Everyone starts out holding and declaring attitude 1; this share then switches privately to attitude 0 and becomes the majority.")),
   conditionalPanel("input.scenario == 'S2'",
@@ -117,7 +129,7 @@ explore_controls <- wellPanel(
   selectInput("topology", "Network:", c("Preferential attachment (Barabási-Albert)" = "ba", "Random graph (Erdős-Rényi)" = "er", "Small world (Watts-Strogatz)" = "small_world",
                                         "Regular lattice" = "regular", "Core-periphery" = "core_periphery", "Complete" = "complete", "Ring" = "ring", "Star" = "star")),
   hp("How the network is built. Preferential attachment, the default, gives a few agents with very many contacts and many with few, as in most real social networks. The random graph gives everyone a similar number of contacts. The small world starts from a ring and rewires a share of ties."),
-  sl("n", "Number of agents \\(n\\):", 10, 2000, 200, 10),
+  sl("n", "Number of agents \\(N\\):", 10, 2000, 200, 10),
   hp("The size of the population."),
   conditionalPanel("input.topology == 'ba'", sl("m_ba", "Contacts made by each new agent \\(m\\):", 1, 10, 2, 1),
     hp("Agents are added one at a time and each new one links to this many existing agents, chosen in proportion to how many contacts they already have. The average number of contacts is about twice this.")),
@@ -144,9 +156,9 @@ explore_controls <- wellPanel(
     hp("Each round, an agent declaring against its attitude adopts the declaration as its attitude with this probability. 0 keeps attitudes fixed."),
     numericInput("max_rounds", "Round cap:", 500, min = 1, step = 1),
     hp("A run that has not settled by this round is stopped and reported as not converged."),
-    numericInput("draw_max_n", "Draw the network up to n =", 300, min = 10, step = 10),
-    hp("Above this population size the network drawing is replaced by a histogram of the number of contacts."),
-    numericInput("bg_n", "Stored set of runs for the scatter plot: n per run", 150, min = 30, step = 10),
+    numericInput("draw_max_n", "Draw the network up to N =", 300, min = 10, step = 10),
+    hp("Above this population size the network drawing is replaced by a histogram of the number of contacts \\(d_i\\)."),
+    numericInput("bg_n", "Stored set of runs for the scatter plot: N per run", 150, min = 30, step = 10),
     hp("Population size of the runs that form the background of the scatter plot."),
     actionButton("bg_recompute", "Recompute the stored set"))
 )
@@ -155,13 +167,14 @@ explore_tab <- tabPanel("Explore", fluidRow(style = "padding-top: 20px;",
   column(4, explore_controls),
   column(8,
     tableOutput("summary"),
-    tags$p(tags$b("Network"), " (fill = attitude, ring = declaration)"), plotOutput("net_plot", height = "600px"),
+    tags$p(tags$b("Network"), " (fill = attitude Y, ring = declaration X)"), plotOutput("net_plot", height = "600px"),
     tags$p(tags$b("Prevalence of pluralistic ignorance and related shares"), style = "margin-top: 30px;"), plotOutput("decomp_plot", height = "460px"),
     tags$p(tags$b("Share believing they are in the local minority against the prevalence of pluralistic ignorance"), ", for this run and for a stored set of runs from every scenario version", style = "margin-top: 30px;"), plotOutput("square_plot", height = "540px"),
-    tags$p(tags$b("Declarations over rounds"), style = "margin-top: 30px;"), plotOutput("traj_plot", height = "460px"),
+    tags$p(tags$b("Declarations X and attitudes Y over rounds"), style = "margin-top: 30px;"), plotOutput("traj_plot", height = "460px"),
     tags$p(tags$b("Population values for each replicate"), style = "margin-top: 30px;"), DTOutput("rep_table"),
-    fluidRow(style = "margin-top: 20px;", column(6, downloadButton("download_nodes_run", "nodes.csv for this run (every agent, all replicates)", style = "width: 100%")),
-             column(6, downloadButton("download_edges_run", "edges.csv for this run", style = "width: 100%"))))
+    fluidRow(style = "margin-top: 20px;", column(6, downloadButton("download_run", "Download this run (zip)", style = "width: 100%"),
+             hp("The first replicate as a census of the whole population, written in every data configuration (folder for_analysts) with the ground truth beside it (folder key).")),
+             column(6, downloadButton("download_nodes_run", "nodes.csv, every agent of every replicate", style = "width: 100%"))))
 ))
 
 corpus_controls <- wellPanel(
@@ -176,13 +189,15 @@ corpus_controls <- wellPanel(
            column(4, numericInput("per_S2pure", "Well-connected minority, conformity off", 30, min = 0, step = 1))),
   radioButtons("cen_choice", "Centrality measure (used for every dataset):", c("degree", "eigenvector", "betweenness"), inline = TRUE),
   hp("How central an agent is when the minority attitude is placed on central agents. Degree: number of contacts. Eigenvector: central in proportion to the centrality of one's contacts. Betweenness: share of shortest paths between other agents that pass through the agent."),
-  sl("respondents", "Respondents per dataset:", 20, 1000, 150, 10),
+  sl("respondents", "Respondents per dataset \\(n\\):", 20, 1000, 150, 10),
   hp("How many agents of each population are surveyed, chosen at random. If a population is smaller than this, everyone is surveyed."),
-  sl("n_range", "Population size \\(n\\):", 50, 2000, c(200, 500), 10),
+  sl("n_range", "Population size \\(N\\):", 50, 2000, c(200, 500), 10),
   hp("Number of agents in each simulated population, drawn at random from this range for every dataset. Move both ends together to fix it."),
-  checkboxGroupInput("records", "What the survey records:",
-                     choices = setNames(names(SURVEY_OPTIONS), SURVEY_OPTIONS), selected = c("degree", "declaration", "ego_perceptions", "neighbor_degrees")),
-  hp("Every dataset records each respondent's attitude and perceived prevalence. Each box adds the named information as columns. The Guide lists what each addition makes it possible to estimate."),
+  h5s("Data configurations"),
+  hp("What the survey records about each respondent. Every dataset is written once per configuration you tick, in its own folder, with the same dataset and respondent identifiers throughout, so the analysts can be given the sparsest configuration first and the others later. The Guide has the full table."),
+  checkboxGroupInput("configs", NULL, choices = setNames(CONFIG_CODES, CONFIG_NAMES), selected = CONFIG_CODES),
+  checkboxInput("add_pn", HTML("Add the item \\(P_{\\mathcal{N}_i}\\): the respondent's estimate of the share of their own contacts holding attitude 1 (column perceived_contacts_mean)"), FALSE),
+  hp("One extra survey question, available in every configuration. In this model respondents extrapolate from their contacts, so \\(P_{\\mathcal{N}_i} = P_i\\) unless extrapolation noise is added under the parameter ranges."),
   numericInput("corpus_seed", "Seed:", 1, min = 0, step = 1),
   hp("Fixes the random numbers, so that the same settings and seed give exactly the same corpus."),
   checkboxInput("corpus_advanced", "Show parameter ranges", FALSE),
@@ -194,6 +209,11 @@ corpus_controls <- wellPanel(
     hp("One range for every scenario. Each agent's conformity parameter is drawn from beta(a, 1), whose mean is a / (a + 1): a = 3 gives a mean of 0.75, and larger a puts more agents near 1."),
     sl("lambda_range", "Strength of the link between centrality and the minority attitude \\(\\lambda\\):", 0, 12, c(2, 8), 0.5),
     hp("Agents receive the minority attitude with probability proportional to their centrality raised to the power lambda. At 0 every agent is equally likely; at 2 an agent twice as central is four times as likely; large values place the minority attitude on the most central agents almost surely."),
+    h5s("Survey"),
+    sl("noise_sd", "Extrapolation noise: standard deviation of \\(P_i - P_{\\mathcal{N}_i}\\):", 0, 0.3, 0, 0.01),
+    hp("Respondents estimate the population share \\(P_i\\) from their contacts. With 0 it equals \\(P_{\\mathcal{N}_i}\\); with noise it departs from it at random, within 0 and 1. The item \\(P_{\\mathcal{N}_i}\\) is never noisy."),
+    sl("alter_response", "Share of named contacts who answer the survey (configuration C4):", 0, 1, 1, 0.05),
+    hp("A contact who is also a respondent always answers. Other contacts answer with this probability; the own answers \\((Y_j, d_j)\\) of a contact who did not answer are left empty. The census configuration C5 is unaffected."),
     h5s("Network family"),
     radioButtons("net_family", NULL, c("Preferential attachment (Barabási-Albert)" = "ba", "Random graph (Erdős-Rényi)" = "er", "Small world (Watts-Strogatz)" = "small_world")),
     hp("One family is used for every dataset in the corpus. Preferential attachment: agents are added one at a time and each new agent links to a few existing agents, chosen in proportion to how many contacts they already have, so a few agents become very well connected. Random graph: every pair of agents is linked independently with the same probability, so most agents have a similar number of contacts. Small world: agents sit on a ring, each linked to its nearest neighbors, and a share of the ties is rewired to agents chosen at random, which keeps local clustering while shortening paths. The friendship-paradox effect needs some agents to have far more contacts than others, which only preferential attachment provides: with the random graph and the small world, scenario 3 does not show the pattern and its datasets cannot be generated, and the random start rarely does. Choose those two families for the private change of mind, or for the random start with a large number of attempts."),
@@ -213,14 +233,12 @@ corpus_tab <- tabPanel("Generate corpus", fluidRow(style = "padding-top: 20px;",
   column(4, corpus_controls),
   column(8,
     verbatimTextOutput("corpus_status"),
-    tags$p(tags$b("For the analysts")),
-    fluidRow(column(4, downloadButton("download_readme", "README.txt", style = "width: 100%")),
-             column(4, downloadButton("download_respondents", "respondents.csv", style = "width: 100%")),
-             column(4, downloadButton("download_ego", "ego_network.csv", style = "width: 100%"))),
-    tags$p(tags$b("Key"), style = "margin-top: 12px;"),
-    fluidRow(column(4, downloadButton("download_key", "key.csv", style = "width: 100%")),
-             column(4, downloadButton("download_nodes", "nodes.csv (every agent of every population)", style = "width: 100%")),
-             column(4, downloadButton("download_edges", "edges.csv (every tie)", style = "width: 100%"))),
+    fluidRow(column(6, downloadButton("download_analysts", "Download the datasets for the analysts (zip)", class = "btn-primary", style = "width: 100%"),
+                    hp("One folder per configuration, each with its README and CSV files, plus an overview README.")),
+             column(6, downloadButton("download_key", "Download the key (zip)", style = "width: 100%"),
+                    hp("key.csv, nodes.csv, edges.csv, corpus.json and a README. Keep it apart from the analysts."))),
+    fluidRow(column(8, radioButtons("one_config", "Download a single configuration:", choices = setNames(CONFIG_CODES, CONFIG_NAMES), selected = "C1", width = "100%")),
+             column(4, downloadButton("download_one_config", "Download this configuration only (zip)", style = "width: 100%; margin-top: 25px;"))),
     tags$p(tags$b("Key"), " (one row per dataset)", style = "margin-top: 20px;"), DTOutput("key_table"),
     tags$p(tags$b("Generated datasets: share believing they are in the local minority against the prevalence of pluralistic ignorance"), style = "margin-top: 30px;"), plotOutput("corpus_square", height = "520px"))
 ))
@@ -312,17 +330,17 @@ server <- function(input, output, session) {
     req(runs())
     do.call(rbind, lapply(runs(), function(x) {
       gt <- x$gt; mf <- majority_frame(gt)
-      data.frame(scenario = scenario_name(x$st$params), seed = x$st$params$seed, share_attitude1 = gt$p, believe_local_minority = gt$apparent_share,
+      data.frame(scenario = scenario_name(x$st$params), seed = x$st$params$seed, mu_Y = gt$mu_Y, believe_local_minority = gt$apparent_share,
                  pattern_present = gt$pattern_present, pi_prevalence = gt$pi_prevalence, pi_prevalence_attitude1 = gt$pi_prevalence_a1, pi_prevalence_attitude0 = gt$pi_prevalence_a0,
-                 wrong_about_local_majority = gt$misperception_gross, misperception_term = gt$term_misperception, structure_term = gt$term_structure, falsified_share = gt$falsified_share,
-                 edge_end_net_misperception = gt$deg_weighted_net_falsification, converged = gt$converged, rounds = gt$rounds,
+                 wrong_about_local_majority = gt$perception_error_gross, perception_error = gt$perception_error, exposure_bias = gt$exposure_bias, Delta_F = gt$Delta_F, falsified_share = gt$falsified_share,
+                 eta = gt$eta, converged = gt$converged, rounds = gt$rounds,
                  mean_degree = gt$mean_degree, degree_assortativity = gt$degree_assortativity, edge_homophily = gt$edge_homophily, n_internalized = gt$n_internalized)
     }))
   })
   output$summary <- renderTable({
     gt <- first()$gt
     data.frame(check.names = FALSE,
-      "Share holding attitude 1" = fmt(gt$p),
+      "Share holding attitude 1 (mu_Y)" = fmt(gt$mu_Y),
       "Share who believe their attitude is the minority among their neighbors" = fmt(gt$apparent_share),
       "Share declaring against their attitude" = fmt(gt$falsified_share),
       "Prevalence of pluralistic ignorance" = fmt(gt$pi_prevalence),
@@ -334,7 +352,7 @@ server <- function(input, output, session) {
     req(isTRUE(session$clientData$output_net_plot_width > 0), isTRUE(session$clientData$output_net_plot_height > 0))
     st <- first()$st; n <- st$g$n
     if (n > input$draw_max_n) {
-      d <- data.frame(degree = st$g$deg, attitude = factor(st$a, levels = c(1, 0), labels = c("attitude 1", "attitude 0")))
+      d <- data.frame(degree = st$g$deg, attitude = factor(st$Y, levels = c(1, 0), labels = c("attitude 1", "attitude 0")))
       return(ggplot(d, aes(degree, fill = attitude)) + geom_histogram(binwidth = 1, position = "stack") +
                scale_fill_manual(values = c("attitude 1" = PI_COL$blue, "attitude 0" = PI_COL$orange)) +
                labs(x = "Number of contacts", y = "Agents", subtitle = sprintf("n = %d exceeds the drawing cap; degree histogram by attitude", n)) + theme_pi())
@@ -344,7 +362,7 @@ server <- function(input, output, session) {
     par(mar = c(0, 0, 0, 0), family = "sans")
     col1 <- PI_COL$blue; col0 <- "#EE4000"
     plot(g, layout = lay, vertex.size = max(3, min(12, 180 / sqrt(n))), vertex.label = NA,
-         vertex.color = ifelse(st$a == 1, col1, col0), vertex.frame.color = ifelse(st$D == 1, col1, col0),
+         vertex.color = ifelse(st$Y == 1, col1, col0), vertex.frame.color = ifelse(st$X == 1, col1, col0),
          vertex.frame.width = 3, edge.color = "grey85", edge.width = 0.6)
     legend("topleft", bty = "n", pch = 21, pt.cex = 2.2, pt.bg = c(col1, col0, col1, col0), col = c(col1, col0, col0, col1), pt.lwd = 3, cex = 1.05, text.col = "#666666",
            legend = c("attitude 1, declares 1", "attitude 0, declares 0", "attitude 1, declares 0", "attitude 0, declares 1"))
@@ -353,8 +371,8 @@ server <- function(input, output, session) {
     req(isTRUE(session$clientData$output_decomp_plot_width > 0), isTRUE(session$clientData$output_decomp_plot_height > 0))
     gt <- first()$gt; st <- first()$st
     lev <- c("Believe own attitude is\nthe local minority", "Wrong about which attitude\nmost neighbors hold", "Declare against\ntheir attitude", "Pluralistic ignorance:\nall agents", "Pluralistic ignorance:\nholders of 1", "Pluralistic ignorance:\nholders of 0")
-    perc <- if (identical(st$params$perception, "attitudes")) st$a else st$D
-    wrong_majority <- mean(vapply(seq_len(st$g$n), function(i) { nb <- st$g$nbrs[[i]]; if (!length(nb)) return(NA); (mean(perc[nb] == st$a[i]) < 0.5) != (mean(st$a[nb] == st$a[i]) < 0.5) }, logical(1)), na.rm = TRUE)
+    perc <- if (identical(st$params$perception, "attitudes")) st$Y else st$X
+    wrong_majority <- mean(vapply(seq_len(st$g$n), function(i) { nb <- st$g$nbrs[[i]]; if (!length(nb)) return(NA); (mean(perc[nb] == st$Y[i]) < 0.5) != (mean(st$Y[nb] == st$Y[i]) < 0.5) }, logical(1)), na.rm = TRUE)
     d <- data.frame(term = factor(lev, levels = lev), value = c(gt$apparent_share, wrong_majority, gt$falsified_share, gt$pi_prevalence, gt$pi_prevalence_a1, gt$pi_prevalence_a0))
     ggplot(d, aes(term, value, fill = term)) + geom_col(width = 0.6, show.legend = FALSE) +
       geom_text(aes(label = fmt(value)), vjust = -0.5, size = 5, color = "#444444") +
@@ -378,26 +396,33 @@ server <- function(input, output, session) {
     st <- first()$st; tr <- st$trajectory; req(tr)
     d <- rbind(data.frame(round = tr$round, value = tr$mean_declaration, series = "Declarations (share declaring 1)"),
                data.frame(round = tr$round, value = tr$mean_attitude, series = "Attitudes (share holding 1)"))
-    d <- rbind(data.frame(round = 0, value = c(mean(st$D0), mean(st$a0)), series = unique(d$series)), d)
-    outcome <- if (st$params$scenario == "S3") sprintf("Outcome: %s.", if (mean(st$D) < 0.5) "most declarations changed to the new attitude" else if (first()$gt$pattern_present) "most declarations remained at the old attitude" else "declarations partly changed") else "Share declaring 1 and share holding 1, by round."
+    d <- rbind(data.frame(round = 0, value = c(mean(st$X0), mean(st$Y0)), series = unique(d$series)), d)
+    outcome <- if (st$params$scenario == "S3") sprintf("Outcome: %s.", if (mean(st$X) < 0.5) "most declarations changed to the new attitude" else if (first()$gt$pattern_present) "most declarations remained at the old attitude" else "declarations partly changed") else "Share declaring 1 and share holding 1, by round."
     ggplot(d, aes(round, value, color = series)) + geom_line(linewidth = 1.5) + geom_point(size = 2.5) +
       geom_hline(yintercept = 0.5, linetype = 2, color = PI_COL$grey) + scale_color_manual(values = c(PI_COL$blue, PI_COL$black)) + ylim(0, 1) +
       labs(x = "Round", y = "Share", subtitle = outcome) + theme_pi()
   })
   output$rep_table <- renderDT({
-    tb <- gt_table()[, c("scenario", "seed", "share_attitude1", "believe_local_minority", "pattern_present", "pi_prevalence", "pi_prevalence_attitude1", "pi_prevalence_attitude0", "wrong_about_local_majority", "falsified_share", "misperception_term", "structure_term", "edge_end_net_misperception", "converged", "rounds", "mean_degree", "degree_assortativity", "edge_homophily", "n_internalized")]
+    tb <- gt_table()[, c("scenario", "seed", "mu_Y", "believe_local_minority", "pattern_present", "pi_prevalence", "pi_prevalence_attitude1", "pi_prevalence_attitude0", "wrong_about_local_majority", "falsified_share", "perception_error", "exposure_bias", "Delta_F", "eta", "converged", "rounds", "mean_degree", "degree_assortativity", "edge_homophily", "n_internalized")]
     datatable(tb, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE) %>%
-      formatRound(c("share_attitude1", "believe_local_minority", "pi_prevalence", "pi_prevalence_attitude1", "pi_prevalence_attitude0", "wrong_about_local_majority", "falsified_share", "misperception_term", "structure_term", "edge_end_net_misperception", "mean_degree", "degree_assortativity", "edge_homophily"), 3)
+      formatRound(c("mu_Y", "believe_local_minority", "pi_prevalence", "pi_prevalence_attitude1", "pi_prevalence_attitude0", "wrong_about_local_majority", "falsified_share", "perception_error", "exposure_bias", "Delta_F", "eta", "mean_degree", "degree_assortativity", "edge_homophily"), 3)
   })
   run_nodes <- reactive({ do.call(rbind, lapply(seq_along(runs()), function(i) {
     st <- runs()[[i]]$st; gt <- runs()[[i]]$gt
-    perc <- if (identical(st$params$perception, "attitudes")) st$a else st$D
-    data.frame(replicate = i, seed = st$params$seed, node_id = seq_len(st$g$n), attitude = st$a, declaration = st$D,
+    perc <- if (identical(st$params$perception, "attitudes")) st$Y else st$X
+    data.frame(replicate = i, seed = st$params$seed, node_id = seq_len(st$g$n), attitude = st$Y, declaration = st$X,
                perceived_prevalence = vapply(st$g$nbrs, function(nb) if (length(nb)) mean(perc[nb]) else NA_real_, numeric(1)),
                degree = st$g$deg, conformity = st$conformity, believes_own_attitude_is_local_minority = gt$apparent_individual, pluralistic_ignorance = gt$pi_individual) })) })
   run_edges <- reactive({ do.call(rbind, lapply(seq_along(runs()), function(i) { st <- runs()[[i]]$st; data.frame(replicate = i, seed = st$params$seed, node_a = st$g$edges[, 1], node_b = st$g$edges[, 2]) })) })
   output$download_nodes_run <- downloadHandler(filename = function() sprintf("nodes_%s_n%d_seed%d.csv", input$scenario, input$n, input$seed), content = function(file) write.csv(run_nodes(), file, row.names = FALSE))
-  output$download_edges_run <- downloadHandler(filename = function() sprintf("edges_%s_n%d_seed%d.csv", input$scenario, input$n, input$seed), content = function(file) write.csv(run_edges(), file, row.names = FALSE))
+  output$download_run <- downloadHandler(
+    filename = function() sprintf("run_%s_n%d_seed%d.zip", input$scenario, input$n, input$seed),
+    content = function(file) {
+      st <- first()$st; sv <- survey(st, st$g$n, survey_seed = input$seed + 500000L)
+      td <- file.path(tempdir(), sprintf("run_%s_n%d_seed%d", input$scenario, input$n, input$seed)); unlink(td, recursive = TRUE)
+      write_run(st, sv, td, configs = CONFIG_CODES, add_pn = TRUE)
+      make_zip(file, td)
+    })
 
   # ---- generate corpus
   corpus <- reactiveVal(NULL); gen_error <- reactiveVal(NULL)
@@ -406,7 +431,9 @@ server <- function(input, output, session) {
     validate(need(sum(counts) > 0, "Ask for at least one dataset."))
     s <- default_corpus_settings()
     s$per_scenario <- counts
-    s$respondents <- as.integer(input$respondents); s$records <- input$records; s$n_range <- as.integer(input$n_range)
+    validate(need(length(input$configs) > 0, "Tick at least one data configuration."))
+    s$respondents <- as.integer(input$respondents); s$configs <- input$configs; s$add_pn <- isTRUE(input$add_pn); s$n_range <- as.integer(input$n_range)
+    s$noise_sd <- input$noise_sd; s$alter_response_rate <- input$alter_response
     s$seed <- as.integer(input$corpus_seed); s$write_state <- TRUE
     s$prevalence_range <- input$prev_range; s$conformity_a_range <- input$ca_range
     s$lambda_range <- input$lambda_range; s$centrality <- input$cen_choice; s$ba_m <- as.integer(input$m_choices)
@@ -417,7 +444,7 @@ server <- function(input, output, session) {
     }), error = function(e) e)
     if (inherits(key, "error")) { corpus(NULL); gen_error(conditionMessage(key)); return() }
     gen_error(NULL)
-    corpus(list(key = key, out = out, attempts = attr(key, "attempts")))
+    corpus(list(key = key, out = out, attempts = attr(key, "attempts"), configs = input$configs))
   })
   output$corpus_status <- renderText({
     cp <- corpus()
@@ -425,13 +452,13 @@ server <- function(input, output, session) {
     if (is.null(cp)) return("")
     k <- cp$key; tab <- table(k$scenario_code); cnt <- function(x) if (x %in% names(tab)) tab[[x]] else 0L
     kept <- paste(sprintf("%s %d (%d)", CLASS_NAMES[SCENARIO_CODES], vapply(SCENARIO_CODES, cnt, integer(1)), cp$attempts[SCENARIO_CODES]), collapse = "; ")
-    sprintf("%d datasets generated. The analysts receive README.txt, respondents.csv and ego_network.csv; the key files are separate downloads.\n\nDatasets kept (runs attempted): %s.\nAttitude coding reversed in %d datasets. The pattern is present in the sample of every dataset (%d of %d). Prevalence of pluralistic ignorance: mean %.3f, range %.3f to %.3f.",
-            nrow(k), kept, sum(k$attitude_coding_flipped), sum(k$pattern_in_sample), nrow(k), mean(k$pi_prevalence), min(k$pi_prevalence), max(k$pi_prevalence))
+    sprintf("%d datasets generated, written in %s. The analysts' package has one folder per configuration; the key is a separate download.\n\nDatasets kept (runs attempted): %s.\nAttitude coding reversed in %d datasets. The pattern is present in the sample of every dataset (%d of %d). Prevalence of pluralistic ignorance: mean %.3f, range %.3f to %.3f.",
+            nrow(k), paste(cp$configs, collapse = ", "), kept, sum(k$attitude_coding_flipped), sum(k$pattern_in_sample), nrow(k), mean(k$pi_prevalence), min(k$pi_prevalence), max(k$pi_prevalence))
   })
   output$key_table <- renderDT({
     cp <- corpus(); req(cp)
     datatable(cp$key, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE) %>%
-      formatRound(c("prevalence_parameter", "mean_degree", "rewiring_share", "lambda", "majority_share", "apparent_share", "pi_prevalence", "pi_prevalence_attitude1", "pi_prevalence_attitude0", "misperception_term", "structure_term", "misperception_gross", "falsified_share", "deg_weighted_net_falsification", "edge_end_test_in_sample_as_coded"), 3)
+      formatRound(c("prevalence_parameter", "mean_degree", "rewiring_share", "lambda", "majority_share", "apparent_share", "pi_prevalence", "pi_prevalence_attitude1", "pi_prevalence_attitude0", "perception_error", "exposure_bias", "perception_error_gross", "Delta_F", "falsified_share", "eta", "eta_sample_as_coded"), 3)
   })
   output$corpus_square <- renderPlot({
     req(isTRUE(session$clientData$output_corpus_square_width > 0), isTRUE(session$clientData$output_corpus_square_height > 0))
@@ -439,15 +466,12 @@ server <- function(input, output, session) {
     d <- data.frame(class = k$scenario_code, apparent = k$apparent_share, prevalence = k$pi_prevalence)
     square_plot(d) + labs(subtitle = "One point per dataset")
   })
-  plain_download <- function(rel, name) downloadHandler(
-    filename = function() name,
-    content = function(file) { cp <- corpus(); req(cp); src <- file.path(cp$out, rel); validate(need(file.exists(src), "This file was not produced with the chosen survey design.")); file.copy(src, file, overwrite = TRUE) })
-  output$download_readme <- plain_download(file.path("blinded", "README.txt"), "README.txt")
-  output$download_respondents <- plain_download(file.path("blinded", "respondents.csv"), "respondents.csv")
-  output$download_ego <- plain_download(file.path("blinded", "ego_network.csv"), "ego_network.csv")
-  output$download_key <- plain_download("key.csv", "key.csv")
-  output$download_nodes <- plain_download(file.path("key_details", "nodes.csv"), "nodes.csv")
-  output$download_edges <- plain_download(file.path("key_details", "edges.csv"), "edges.csv")
+  zip_download <- function(rel, name) downloadHandler(
+    filename = function() { cp <- corpus(); if (is.null(cp)) name() else sprintf("%s_%s", basename(cp$out), name()) },
+    content = function(file) { cp <- corpus(); req(cp); src <- file.path(cp$out, rel()); validate(need(dir.exists(src), "This configuration was not generated.")); make_zip(file, src) })
+  output$download_analysts <- zip_download(function() "for_analysts", function() "for_analysts.zip")
+  output$download_key <- zip_download(function() "key", function() "key.zip")
+  output$download_one_config <- zip_download(function() file.path("for_analysts", input$one_config), function() sprintf("%s.zip", input$one_config))
 
 }
 

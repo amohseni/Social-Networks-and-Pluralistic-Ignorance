@@ -5,7 +5,7 @@
 # applies theme_pi(); no color literals elsewhere.
 
 PI_COL <- list(
-  orange = "orangered2",   # misperception term; attitude not-x; S3
+  orange = "orangered2",   # perception error; attitude 0; S3
   blue   = "#3475BC",      # structure term; attitude x; S2-pure
   black  = "black",        # gap; declarations; S1; prediction-style baseline
   blue_light = "#9DC3E6",  # S2-mixed
